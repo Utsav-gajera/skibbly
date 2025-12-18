@@ -82,9 +82,6 @@ export default function GameModeSelector({ onSelectMode }) {
               </div>
             </SignedIn>
           </nav>
-              </>
-            )}
-          </nav>
         </div>
       </header>
 

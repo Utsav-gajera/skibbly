@@ -19,7 +19,7 @@ await connectCloudinary();
 app.use(cors());
 
 // Clerk webhook 
-app.post("/webhooks", express.raw({ type: "application/json" }), ClerkWebhook);
+app.post("/api/webhooks", express.raw({ type: "application/json" }), ClerkWebhook);
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
