@@ -9,7 +9,7 @@ const connectDB = async () => {
         console.log('MongoDB connected');
     });
 
-    await mongoose.connect(`${process.env.MONGODB_URI}/job-portal`, {
+    await mongoose.connect(`${process.env.MONGODB_URI}/skibbly`, {
         
     });
 }
