@@ -1,6 +1,9 @@
+"use client";
+
 import { useState } from 'react';
 import { useRouter } from 'next/router';
 import { SignedIn, SignedOut, SignInButton, SignUpButton, UserButton, useUser } from '@clerk/nextjs';
+import NavBar from './NavBar';
 
 export default function GameModeSelector({ onSelectMode }) {
   const router = useRouter();
@@ -43,48 +46,59 @@ export default function GameModeSelector({ onSelectMode }) {
       <div className="absolute top-1/2 left-1/2 w-96 h-96 bg-pink-400/20 rounded-full blur-3xl animate-pulse" style={{ animationDelay: '2s' }}></div>
 
       {/* Header Navigation */}
-      <header className="relative z-20 bg-white/90 backdrop-blur-2xl shadow-lg border-b-2 border-transparent" style={{ borderImage: 'linear-gradient(90deg, #3b82f6, #8b5cf6, #ec4899) 1' }}>
-        <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
-          {/* Logo */}
-          <nav className="flex items-center gap-4">
-            <SignedOut>
-              <SignInButton mode="modal">
-                <button className="px-5 py-2 rounded-xl font-semibold text-slate-700 bg-white border-2 border-slate-200 hover:border-blue-400 hover:bg-blue-50 transition-all duration-300 transform hover:scale-105">
-                  Sign in
-                </button>
-              </SignInButton>
-              <SignUpButton mode="modal">
-                <button className="relative px-5 py-2 rounded-xl font-bold bg-gradient-to-r from-blue-500 via-indigo-500 to-purple-600 text-white transition-all duration-300 transform hover:scale-105 shadow-lg hover:shadow-xl overflow-hidden group">
-                  <span className="relative z-10">Sign up</span>
-                  <div className="absolute inset-0 bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-700 opacity-0 group-hover:opacity-100 transition-opacity"></div>
-                </button>
-              </SignUpButton>
-            </SignedOut>
-
-            <SignedIn>
-              <div className="flex items-center gap-3 text-slate-700">
-                <button
-                  type="button"
-                  onClick={() => router.push('/home')}
-                  className="px-4 py-2 rounded-xl bg-white border border-slate-200 hover:border-blue-400 hover:bg-blue-50 transition"
-                >
-                  Home
-                </button>
-                <button
-                  type="button"
-                  onClick={() => router.push('/game')}
-                  className="px-4 py-2 rounded-xl bg-white border border-slate-200 hover:border-blue-400 hover:bg-blue-50 transition"
-                >
-                  Play
-                </button>
-                <span className="max-sm:hidden font-semibold">Hi, {user?.firstName || 'Player'}</span>
-                <UserButton afterSignOutUrl="/" />
-              </div>
-            </SignedIn>
-          </nav>
+      <header className="w-full bg-white/90 backdrop-blur shadow-sm border-b border-purple-100">
+      <div className="max-w-6xl mx-auto flex items-center justify-between px-4 py-3">
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => router.push('/')}
+            className="text-xl font-semibold text-purple-700 flex items-center gap-2"
+          >
+            <span className="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-purple-600 to-pink-500 text-white font-bold">
+              S
+            </span>
+            Skibbly
+          </button>
+          <span className="hidden sm:inline-flex text-[11px] font-semibold px-2 py-1 rounded-full bg-purple-50 text-purple-700 border border-purple-100">
+            Live
+          </span>
         </div>
-      </header>
 
+        <SignedIn>
+          <div className="flex items-center gap-3 text-sm text-gray-700 ml-auto">
+            <div className="hidden sm:flex items-center gap-2 px-3 py-2 rounded-lg bg-purple-50 text-purple-700 font-semibold">
+              <span className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-br from-purple-600 to-pink-500 text-white">🎨</span>
+              <span>Skibbly</span>
+            </div>
+            <span className="hidden sm:inline text-gray-500">Hi, {user?.firstName || 'Player'}</span>
+            <UserButton
+              appearance={{
+                elements: {
+                  avatarBox: 'h-10 w-10',
+                  userButtonTrigger: 'h-11 w-11 rounded-full bg-gradient-to-br from-purple-600 to-pink-500 text-white shadow-lg ring-2 ring-purple-100 hover:ring-purple-200 transition',
+                },
+              }}
+              afterSignOutUrl="/"
+            />
+          </div>
+        </SignedIn>
+
+        <SignedOut>
+            <div className="flex items-center gap-3 text-sm ml-auto">
+            <SignInButton mode="modal">
+              <button className="text-purple-700 hover:text-purple-800 px-3 py-2 rounded-lg hover:bg-purple-50">
+                Sign in
+              </button>
+            </SignInButton>
+            <SignUpButton mode="modal">
+              <button className="bg-purple-700 text-white px-4 py-2 rounded-full hover:bg-purple-800 shadow-sm">
+                Sign up
+              </button>
+            </SignUpButton>
+          </div>
+        </SignedOut>
+      </div>
+    </header>
       {/* Main Content */}
       <div className="relative z-10 w-full max-w-6xl mx-auto px-4 py-12 min-h-[calc(100vh-80px)] flex flex-col justify-center">
         {/* Header */}

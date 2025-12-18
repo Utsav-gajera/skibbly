@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/router';
 import { io } from 'socket.io-client';
+import { SignedIn, SignedOut, UserButton, useUser } from '@clerk/nextjs';
 import TeamModeConfig from '../components/TeamModeConfig';
 import DrawingBoard from '../components/DrawingBoard';
 import GroupChat from '../components/GroupChat';
@@ -17,6 +18,7 @@ export default function TeamPage() {
   const [players, setPlayers] = useState([]);
   const [roomId, setRoomId] = useState('');
   const [shareLink, setShareLink] = useState('');
+  const { user } = useUser();
 
   const createRoomId = () => `room-${Math.random().toString(36).slice(2, 8)}`;
 
@@ -37,6 +39,13 @@ export default function TeamPage() {
     setPlayers([]);
     return () => socketRef.current?.disconnect();
   }, []);
+
+  useEffect(() => {
+    if (user) {
+      const displayName = user.fullName || user.username || user.firstName || name;
+      setName(displayName);
+    }
+  }, [user]);
 
   // Initialize / update room id and share link
   useEffect(() => {
@@ -75,10 +84,37 @@ export default function TeamPage() {
             <div className="absolute -bottom-1 left-0 right-0 h-1 bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 rounded-full shadow-lg"></div>
           </div>
         </div>
-        <div className="relative flex items-center gap-4 z-10">
-          <input className="border-2 border-transparent rounded-xl px-5 py-2.5 font-semibold text-slate-700 bg-white shadow-lg" value={name} onChange={(e) => setName(e.target.value)} />
-          <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white font-bold shadow-lg ring-2 ring-white/50">{name.charAt(0).toUpperCase()}</div>
-        </div>
+        <SignedIn>
+          <div className="relative flex items-center gap-3 z-10 ml-auto">
+            <div className="hidden sm:flex items-center gap-2 px-3 py-2 rounded-lg bg-purple-50 text-purple-700 font-semibold border border-purple-100">
+              <span className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-br from-purple-600 to-pink-500 text-white">🎨</span>
+              <span>Skibbly</span>
+            </div>
+            <span className="hidden sm:inline text-slate-600 font-semibold">Hi, {name}</span>
+            <UserButton
+              appearance={{
+                elements: {
+                  avatarBox: 'h-10 w-10',
+                  userButtonTrigger: 'h-11 w-11 rounded-full bg-gradient-to-br from-purple-600 to-pink-500 text-white shadow-lg ring-2 ring-purple-100 hover:ring-purple-200 transition',
+                },
+              }}
+              afterSignOutUrl="/"
+            />
+          </div>
+        </SignedIn>
+
+        <SignedOut>
+          <div className="relative flex items-center gap-4 z-10 ml-auto">
+            <input
+              className="border-2 border-transparent rounded-xl px-5 py-2.5 font-semibold text-slate-700 bg-white shadow-lg"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+            />
+            <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white font-bold shadow-lg ring-2 ring-white/50">
+              {name.charAt(0).toUpperCase()}
+            </div>
+          </div>
+        </SignedOut>
       </header>
       <main className="px-4 pb-6">
         <div className="grid md:grid-cols-[2fr_1fr] grid-cols-1 gap-3 h-[calc(100vh-140px)]">
