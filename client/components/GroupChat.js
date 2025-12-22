@@ -10,18 +10,35 @@ export default function GroupChat({ socketRef, name, title = 'Group Chat', chann
     const onMessage = (msg) => {
       const incomingRoom = msg?.roomId;
       const incomingChannel = msg?.channel;
-      if (roomId && incomingRoom && incomingRoom !== roomId) return;
-      if (channel && incomingChannel && incomingChannel !== channel) return;
-      setMessages((m) => [...m, msg]);
+      
+      // Only filter if we have BOTH values to compare
+      // If roomId is set and incoming message has a different roomId, skip
+      if (roomId && incomingRoom && incomingRoom !== roomId) {
+        console.log('Filtered out by roomId:', { expected: roomId, incoming: incomingRoom });
+        return;
+      }
+      
+      // If channel is set and incoming message has a different channel, skip
+      if (channel && incomingChannel && incomingChannel !== channel) {
+        console.log('Filtered out by channel:', { expected: channel, incoming: incomingChannel });
+        return;
+      }
+      
+      console.log('Message accepted:', msg);
+      
+      setMessages((prev) => {
+        const isDuplicate = prev.some(
+          (m) => m.user === msg.user && m.text === msg.text && m.channel === msg.channel && m.roomId === msg.roomId
+        );
+        return isDuplicate ? prev : [...prev, msg];
+      });
     };
 
     const onConnect = () => {
-      console.log('GroupChat: Socket connected');
       setIsConnected(true);
     };
 
     const onDisconnect = () => {
-      console.log('GroupChat: Socket disconnected');
       setIsConnected(false);
     };
 
@@ -34,6 +51,13 @@ export default function GroupChat({ socketRef, name, title = 'Group Chat', chann
         socketRef.current.on('connect', onConnect);
         socketRef.current.on('disconnect', onDisconnect);
         
+        // Ensure we are in the intended room (idempotent on server)
+        if (roomId && name) {
+          try {
+            socketRef.current.emit('join-room', { roomId, name });
+          } catch {}
+        }
+
         // Check if already connected
         if (socketRef.current.connected) {
           setIsConnected(true);
@@ -49,7 +73,7 @@ export default function GroupChat({ socketRef, name, title = 'Group Chat', chann
         socketRef.current.off('disconnect', onDisconnect);
       }
     };
-  }, []);
+  }, [channel, roomId]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -58,14 +82,11 @@ export default function GroupChat({ socketRef, name, title = 'Group Chat', chann
   function sendMessage(e) {
     e.preventDefault();
     if (!input.trim()) return;
-
-    const msg = { user: name, text: input, channel, roomId };
-    console.log('Sending message:', msg);
+    const msg = { user: name, text: input.trim(), channel, roomId };
+    setMessages((m) => [...m, msg]);
+    setInput('');
     if (socketRef.current && socketRef.current.connected) {
       socketRef.current.emit('message', msg);
-      setInput('');
-    } else {
-      console.error('Socket not connected');
     }
   }
 
@@ -89,10 +110,19 @@ export default function GroupChat({ socketRef, name, title = 'Group Chat', chann
       </div>
       
       {/* Messages */}
-      <div className="flex-1 overflow-y-auto px-4 py-4 space-y-3 relative z-10">
+      <div className="flex-1 overflow-y-auto px-4 py-4 space-y-3 relative z-10 text-slate-800">
         {messages.map((m, idx) => (
-          <div key={idx} className="text-sm">
-            <span className="font-semibold text-blue-700">{m.user}:</span> {m.text}
+          <div key={idx} className="text-sm break-words leading-6">
+            <span className="font-semibold text-blue-700">{m.user} {m.user !== '' ? ':' : ''}</span>
+<span
+  className={`ml-1 ${
+    m.user === ''
+      ? 'text-green-300 italic font-bold'
+      : 'text-slate-800'
+  }`}
+>
+  {m.text}
+</span>
           </div>
         ))}
         <div ref={messagesEndRef} />

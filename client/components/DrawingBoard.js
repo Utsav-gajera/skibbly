@@ -3,14 +3,15 @@ import { fabric } from 'fabric';
 
 export default function DrawingBoard({ socketRef, brushColor, brushWidth, mode, setMode, name, selectedWord, onChangeBrushColor, onChangeBrushWidth, channel, roomId }) {
   const canvasRef = useRef(null);
-  const containerRef = useRef(null);
+  const containerRef = useRef(null); // canvas area (excludes toolbar)
   const fabricRef = useRef(null);
   const undoStack = useRef([]);
   const isUndoing = useRef(false);
 
   useEffect(() => {
     const canvasEl = canvasRef.current;
-    if (!canvasEl) return;
+    const areaEl = containerRef.current;
+    if (!canvasEl || !areaEl) return;
 
     const canvas = new fabric.Canvas(canvasEl, {
       isDrawingMode: true,
@@ -48,14 +49,36 @@ export default function DrawingBoard({ socketRef, brushColor, brushWidth, mode, 
     const onDraw = (data) => {
       const canvas = fabricRef.current;
       if (!canvas) return;
-      // Channel filter: if this board has a channel, only accept matching events (or events without channel)
       const incomingChannel = data?.channel;
       const incomingRoom = data?.roomId;
-      if (roomId && incomingRoom && incomingRoom !== roomId) return;
-      if (channel && incomingChannel && incomingChannel !== channel) return;
+      
+      console.log('🎨 DrawingBoard onDraw received. Expected room:', roomId, 'channel:', channel, 'Incoming:', { room: incomingRoom, channel: incomingChannel, hasPayload: !!data?.payload });
+      
+      // Filter by roomId - only if BOTH are present and different
+      if (roomId && incomingRoom && incomingRoom !== roomId) {
+        console.log('❌ Filtered draw by roomId mismatch:', roomId, '!==', incomingRoom);
+        return;
+      }
+      
+      // Filter by channel - only if BOTH are present and different
+      if (channel && incomingChannel && incomingChannel !== channel) {
+        console.log('❌ Filtered draw by channel mismatch:', channel, '!==', incomingChannel);
+        return;
+      }
 
+      console.log('✅ Draw accepted, applying to canvas');
       const payload = data?.payload ?? data;
+      
+      if (!payload) {
+        console.error('No payload in draw data:', data);
+        return;
+      }
+
       fabric.util.enlivenObjects([payload], (objects) => {
+        if (!objects || objects.length === 0) {
+          console.error('Failed to enliven objects');
+          return;
+        }
         objects.forEach((o) => canvas.add(o));
         canvas.requestRenderAll();
       });
@@ -206,7 +229,6 @@ export default function DrawingBoard({ socketRef, brushColor, brushWidth, mode, 
 
   function resizeCanvas(canvas) {
     if (!canvas || !containerRef.current) return;
-    
     const w = containerRef.current.offsetWidth;
     const h = containerRef.current.offsetHeight;
     
@@ -326,28 +348,30 @@ export default function DrawingBoard({ socketRef, brushColor, brushWidth, mode, 
   }
 
   return (
-    <section ref={containerRef} id="canvas-container" className="relative bg-gradient-to-br from-gray-50 to-blue-50" style={{ width: '100%', height: '100%', overflow: 'hidden' }}>
-      <canvas ref={canvasRef} style={{ display: 'block', position: 'absolute', top: 0, left: 0 }} />
-      
-      {/* Selected Word Display */}
-      {selectedWord && (
-        <div className="absolute top-4 left-1/2 transform -translate-x-1/2 z-10 px-6 py-3 bg-gradient-to-r from-purple-600 to-pink-600 text-white font-bold text-xl rounded-2xl shadow-2xl animate-pulse">
-          <span className="mr-2">🎯</span>
-          Draw: <span className="uppercase tracking-wide">{selectedWord}</span>
-        </div>
-      )}
-      
-      <div className="absolute bottom-4 left-4 right-4 z-10 flex flex-wrap items-center gap-4 bg-white/90 backdrop-blur-xl px-5 py-3 rounded-2xl shadow-2xl border border-white/50">
-        <label className="flex items-center gap-3 transition-all hover:scale-105">
+    <section id="canvas-container" className="relative flex flex-col bg-gradient-to-br from-gray-50 to-blue-50" style={{ width: '100%', height: '100%', overflow: 'hidden' }}>
+      <div ref={containerRef} className="relative flex-1">
+        <canvas ref={canvasRef} style={{ display: 'block', position: 'absolute', top: 0, left: 0 }} />
+
+        {/* Selected Word Display */}
+        {selectedWord && (
+          <div className="absolute top-4 left-1/2 transform -translate-x-1/2 z-10 px-6 py-3 bg-gradient-to-r from-purple-600 to-pink-600 text-white font-bold text-xl rounded-2xl shadow-2xl animate-pulse">
+            <span className="mr-2">🎯</span>
+            Draw: <span className="uppercase tracking-wide">{selectedWord}</span>
+          </div>
+        )}
+      </div>
+
+      <div className="relative z-10 flex flex-wrap items-center gap-3 bg-white/90 backdrop-blur-xl px-4 py-2.5 rounded-t-2xl shadow-xl border border-white/50">
+        <label className="flex items-center gap-2 transition-all hover:scale-[1.02]">
           <span className="text-sm font-semibold text-slate-700">Color</span>
           <input 
             type="color" 
             value={brushColor} 
             onChange={(e) => onChangeBrushColor?.(e.target.value)} 
-            className="w-10 h-10 rounded-lg cursor-pointer border-2 border-slate-200 shadow-sm hover:shadow-md transition-shadow"
+            className="w-9 h-9 rounded-lg cursor-pointer border border-slate-200 shadow-sm hover:shadow-md transition-shadow"
           />
         </label>
-        <label className="flex items-center gap-3 transition-all hover:scale-105">
+        <label className="flex items-center gap-2 transition-all hover:scale-[1.02]">
           <span className="text-sm font-semibold text-slate-700">Size</span>
           <input 
             type="range" 
@@ -355,7 +379,7 @@ export default function DrawingBoard({ socketRef, brushColor, brushWidth, mode, 
             max="40" 
             value={brushWidth} 
             onChange={(e) => onChangeBrushWidth?.(parseInt(e.target.value))} 
-            className="w-32 accent-blue-600"
+            className="w-28 accent-blue-600"
           />
           <span className="text-xs font-medium text-slate-500 min-w-[2rem]">{brushWidth}px</span>
         </label>
@@ -363,33 +387,33 @@ export default function DrawingBoard({ socketRef, brushColor, brushWidth, mode, 
         <div className="flex items-center gap-2">
           <button 
             onClick={enablePencil} 
-            className={`px-4 py-2 rounded-xl font-medium transition-all duration-300 transform hover:scale-105 hover:shadow-lg ${
+            className={`px-3.5 py-2 rounded-lg font-medium transition-all duration-300 transform hover:scale-[1.03] hover:shadow-md ${
               mode === 'pencil' 
-                ? 'bg-gradient-to-r from-blue-500 to-blue-600 text-white shadow-lg shadow-blue-500/50' 
-                : 'bg-white text-slate-700 border-2 border-slate-200 hover:border-blue-400'
+                ? 'bg-gradient-to-r from-blue-500 to-blue-600 text-white shadow-md shadow-blue-500/40' 
+                : 'bg-white text-slate-700 border border-slate-200 hover:border-blue-400'
             }`}
           >
             🖊 Pencil
           </button>
           <button 
             onClick={enableEraser} 
-            className={`px-4 py-2 rounded-xl font-medium transition-all duration-300 transform hover:scale-105 hover:shadow-lg ${
+            className={`px-3.5 py-2 rounded-lg font-medium transition-all duration-300 transform hover:scale-[1.03] hover:shadow-md ${
               mode === 'eraser' 
-                ? 'bg-gradient-to-r from-slate-500 to-slate-600 text-white shadow-lg shadow-slate-500/50' 
-                : 'bg-white text-slate-700 border-2 border-slate-200 hover:border-slate-400'
+                ? 'bg-gradient-to-r from-slate-500 to-slate-600 text-white shadow-md shadow-slate-500/40' 
+                : 'bg-white text-slate-700 border border-slate-200 hover:border-slate-400'
             }`}
           >
             🧽 Eraser
           </button>
           <button 
             onClick={undo} 
-            className="px-4 py-2 rounded-xl font-medium bg-white text-slate-700 border-2 border-slate-200 hover:border-amber-400 hover:bg-amber-50 transition-all duration-300 transform hover:scale-105 hover:shadow-lg"
+            className="px-3.5 py-2 rounded-lg font-medium bg-white text-slate-700 border border-slate-200 hover:border-amber-400 hover:bg-amber-50 transition-all duration-300 transform hover:scale-[1.03] hover:shadow-md"
           >
             ↶ Undo
           </button>
           <button 
             onClick={clearCanvas} 
-            className="px-4 py-2 rounded-xl font-medium bg-gradient-to-r from-red-500 to-rose-600 text-white border-2 border-transparent hover:from-red-600 hover:to-rose-700 transition-all duration-300 transform hover:scale-105 hover:shadow-lg shadow-red-500/50"
+            className="px-3.5 py-2 rounded-lg font-medium bg-gradient-to-r from-red-500 to-rose-600 text-white border border-transparent hover:from-red-600 hover:to-rose-700 transition-all duration-300 transform hover:scale-[1.03] hover:shadow-md shadow-red-500/40"
           >
             🗑️ Clear
           </button>
