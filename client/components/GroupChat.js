@@ -5,8 +5,27 @@ export default function GroupChat({ socketRef, name, title = 'Group Chat', chann
   const [input, setInput] = useState('');
   const [isConnected, setIsConnected] = useState(false);
   const messagesEndRef = useRef(null);
+  const STORAGE_PREFIX = 'skibbly:chat:';
+  const roomRef = useRef(roomId);
+  const channelRef = useRef(channel);
 
   useEffect(() => {
+    roomRef.current = roomId;
+    channelRef.current = channel;
+  }, [roomId, channel]);
+
+  useEffect(() => {
+    // hydrate from storage
+    try {
+      const key = getStorageKey();
+      if (typeof window !== 'undefined' && key) {
+        const saved = localStorage.getItem(key);
+        if (saved) {
+          setMessages(JSON.parse(saved));
+        }
+      }
+    } catch (e) {}
+
     const onMessage = (msg) => {
       const incomingRoom = msg?.roomId;
       const incomingChannel = msg?.channel;
@@ -75,6 +94,16 @@ export default function GroupChat({ socketRef, name, title = 'Group Chat', chann
     };
   }, [channel, roomId]);
 
+  // persist chat
+  useEffect(() => {
+    try {
+      const key = getStorageKey();
+      if (typeof window !== 'undefined' && key) {
+        localStorage.setItem(key, JSON.stringify(messages));
+      }
+    } catch (e) {}
+  }, [messages]);
+
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
@@ -88,6 +117,12 @@ export default function GroupChat({ socketRef, name, title = 'Group Chat', chann
     if (socketRef.current && socketRef.current.connected) {
       socketRef.current.emit('message', msg);
     }
+  }
+
+  function getStorageKey() {
+    const roomKey = roomRef.current || 'local';
+    const chanKey = channelRef.current || 'solo';
+    return `${STORAGE_PREFIX}${chanKey}:${roomKey}`;
   }
 
   return (

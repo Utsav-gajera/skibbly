@@ -200,6 +200,8 @@ export default function GamePage() {
           selectedWord={selectedWord}
           onChangeBrushColor={(val) => setBrushColor(val)}
           onChangeBrushWidth={(val) => setBrushWidth(val)}
+          channel="solo"
+          roomId=""
         />
         <GroupChat 
           socketRef={socketRef}

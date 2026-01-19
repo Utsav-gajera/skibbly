@@ -9,6 +9,8 @@ import GroupChat from '../components/GroupChat';
 export default function TeamPage() {
   const router = useRouter();
   const socketRef = useRef(null);
+  const sessionIdRef = useRef('');
+  const TAB_SESSION_KEY = 'skibbly:tabSessionId';
   const [name, setName] = useState(() => `User-${Math.floor(Math.random() * 1000)}`);
   const [brushColor, setBrushColor] = useState('#22d3ee');
   const [brushWidth, setBrushWidth] = useState(8);
@@ -19,8 +21,21 @@ export default function TeamPage() {
   const [roomId, setRoomId] = useState('');
   const [shareLink, setShareLink] = useState('');
   const { user } = useUser();
+  const [currentDrawerId, setCurrentDrawerId] = useState(null);
+  const [drawerName, setDrawerName] = useState('');
+  const [mySocketId, setMySocketId] = useState(null);
 
   const createRoomId = () => `room-${Math.random().toString(36).slice(2, 8)}`;
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    let sid = sessionStorage.getItem(TAB_SESSION_KEY);
+    if (!sid) {
+      sid = `tab-${Math.random().toString(36).slice(2, 10)}-${Date.now().toString(36)}`;
+      sessionStorage.setItem(TAB_SESSION_KEY, sid);
+    }
+    sessionIdRef.current = sid;
+  }, []);
 
   useEffect(() => {
     const initSocket = async () => {
@@ -28,8 +43,27 @@ export default function TeamPage() {
       const socket = io({ path: '/api/socket' });
       socketRef.current = socket;
 
+      socket.on('connect', () => {
+        console.log('Socket connected with ID:', socket.id);
+        setMySocketId(socket.id);
+      });
+      
+      socket.on('disconnect', () => {
+        setMySocketId(null);
+      });
+      
+      socket.on('socket-id', (data) => {
+        console.log('Socket ID received from server:', data.id);
+        setMySocketId(data.id);
+      });
+
       socket.on('room:players', (list) => {
-        setPlayers(list?.map((p) => p.name) || []);
+        setPlayers(list || []);
+      });
+      
+      socket.on('drawer:changed', (data) => {
+        setCurrentDrawerId(data.drawerId);
+        setDrawerName(data.drawerName);
       });
     };
     initSocket();
@@ -58,7 +92,7 @@ export default function TeamPage() {
 
   const joinRoom = (id) => {
     if (!id || !socketRef.current) return;
-    socketRef.current.emit('join-room', { roomId: id, name });
+    socketRef.current.emit('join-room', { roomId: id, name, sessionId: sessionIdRef.current });
   };
 
   const startTeam = (cfg) => {
@@ -73,11 +107,12 @@ export default function TeamPage() {
   };
 
   const accent = ['from-cyan-400 to-blue-500', 'from-amber-400 to-orange-500', 'from-emerald-400 to-teal-500', 'from-pink-400 to-rose-500', 'from-indigo-400 to-purple-500'];
-  const roster = (players?.length ? players : [name || 'You', 'Atlas', 'Nova', 'Rhea', 'Flux']).map((p, idx) => ({
-    name: typeof p === 'string' ? p : p?.name || `Player-${idx + 1}`,
+  const roster = (players?.length ? players : []).map((p, idx) => ({
+    id: p?.id || `player-${idx}`,
+    name: p?.name || `Player-${idx + 1}`,
     score: Math.max(0, 1600 - idx * 180),
     accent: accent[idx % accent.length],
-    isSelf: (typeof p === 'string' ? p : p?.name) === name,
+    isSelf: p?.id === mySocketId,
     rank: idx + 1,
   }));
 
@@ -182,21 +217,35 @@ export default function TeamPage() {
                 <span>Room</span>
                 <span className="font-semibold text-cyan-300">{roomId || 'room-code'}</span>
               </div>
-              <div className="mt-1 text-lg font-black text-white">Scoreboard</div>
+              <div className="mt-1 text-lg font-black text-white">Players</div>
               <div className="mt-3 space-y-3 overflow-y-auto pr-1">
-                {roster.map((player) => (
-                  <div
-                    key={player.rank}
-                    className={`flex items-center gap-3 px-3 py-2 rounded-2xl border border-slate-800 bg-slate-800/70 shadow-inner`}
-                  >
-                    <div className={`h-10 w-10 rounded-xl bg-gradient-to-br ${player.accent} text-slate-900 font-black flex items-center justify-center`}>#{player.rank}</div>
-                    <div className="flex-1">
-                      <div className={`text-sm font-bold ${player.isSelf ? 'text-cyan-200' : 'text-slate-100'}`}>{player.name}</div>
-                      <div className="text-xs text-slate-400">{player.score} pts</div>
-                    </div>
-                    {player.isSelf && <span className="text-[11px] px-2 py-1 rounded-full bg-cyan-500/20 text-cyan-200 border border-cyan-500/40">You</span>}
+                {roster.length > 0 ? (
+                  roster.map((player) => {
+                    const isCurrentDrawer = player.id === currentDrawerId;
+                    return (
+                      <div
+                        key={player.id}
+                        className={`flex items-center gap-3 px-3 py-2 rounded-2xl border border-slate-800 bg-slate-800/70 shadow-inner`}
+                      >
+                        <div className={`h-10 w-10 rounded-xl text-slate-900 font-black flex items-center justify-center ${isCurrentDrawer ? 'bg-gradient-to-br from-green-400 to-emerald-500' : `bg-gradient-to-br ${player.accent}`}`}>
+                          {isCurrentDrawer ? '✏️' : `#${player.rank}`}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className={`text-sm font-bold truncate ${player.isSelf ? 'text-cyan-200' : isCurrentDrawer ? 'text-green-200' : 'text-slate-100'}`}>
+                            {player.name}
+                          </div>
+                          <div className="text-xs text-slate-400">{isCurrentDrawer ? 'Drawing now' : 'Ready'}</div>
+                        </div>
+                        {player.isSelf && <span className="text-[11px] px-2 py-1 rounded-full bg-cyan-500/20 text-cyan-200 border border-cyan-500/40">You</span>}
+                        {isCurrentDrawer && !player.isSelf && <span className="text-[11px] px-2 py-1 rounded-full bg-green-500/20 text-green-200 border border-green-500/40">🎨</span>}
+                      </div>
+                    );
+                  })
+                ) : (
+                  <div className="text-center py-8 text-slate-400">
+                    <p className="text-sm">No players in room yet</p>
                   </div>
-                ))}
+                )}
               </div>
             </aside>
 
@@ -222,9 +271,13 @@ export default function TeamPage() {
                     mode={drawMode}
                     setMode={setDrawMode}
                     name={name}
+                    mySocketId={mySocketId}
+                    currentDrawerId={currentDrawerId}
+                    drawerName={drawerName}
                     onChangeBrushColor={setBrushColor}
                     onChangeBrushWidth={setBrushWidth}
                     roomId={roomId}
+                    channel="team"
                   />
                 </div>
               </div>

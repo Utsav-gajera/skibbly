@@ -11,6 +11,11 @@ export default function SoloPage() {
   const socketRef = useRef(null);
   const roomIdRef = useRef('');
   const nameRef = useRef('');
+  const sessionIdRef = useRef('');
+  const ROOM_STORAGE_KEY = 'skibbly:solo-roomId';
+  const STAGE_STORAGE_KEY = 'skibbly:solo-stage';
+  const CONFIG_STORAGE_KEY = 'skibbly:solo-config';
+  const TAB_SESSION_KEY = 'skibbly:tabSessionId';
   const [name, setName] = useState(() => `User-${Math.floor(Math.random() * 1000)}`);
   const [brushColor, setBrushColor] = useState('#22d3ee');
   const [brushWidth, setBrushWidth] = useState(8);
@@ -21,8 +26,22 @@ export default function SoloPage() {
   const [roomId, setRoomId] = useState('');
   const [shareLink, setShareLink] = useState('');
   const { user } = useUser();
+  const [players, setPlayers] = useState([]);
+  const [currentDrawerId, setCurrentDrawerId] = useState(null);
+  const [drawerName, setDrawerName] = useState('');
+  const [mySocketId, setMySocketId] = useState(null);
 
   const createRoomId = () => `solo-${Math.random().toString(36).slice(2, 8)}`;
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    let sid = sessionStorage.getItem(TAB_SESSION_KEY);
+    if (!sid) {
+      sid = `tab-${Math.random().toString(36).slice(2, 10)}-${Date.now().toString(36)}`;
+      sessionStorage.setItem(TAB_SESSION_KEY, sid);
+    }
+    sessionIdRef.current = sid;
+  }, []);
 
   useEffect(() => {
     const initSocket = async () => {
@@ -36,15 +55,41 @@ export default function SoloPage() {
       });
       
       socket.on('connect', () => {
-        if (roomIdRef.current) {
-          socket.emit('join-room', { roomId: roomIdRef.current, name: nameRef.current });
-        }
+        const socketId = socket.id;
+        console.log('🔌 Socket connected with ID:', socketId);
+        setMySocketId(socketId);
+        
+        // Wait a tick to ensure DrawingBoard has captured the socket ID
+        setTimeout(() => {
+          if (roomIdRef.current && nameRef.current) {
+            console.log('📤 Emitting join-room:', { roomId: roomIdRef.current, name: nameRef.current, socketId });
+            socket.emit('join-room', { roomId: roomIdRef.current, name: nameRef.current, sessionId: sessionIdRef.current });
+          }
+        }, 50);
       });
       
-      socket.on('disconnect', () => {});
+      socket.on('disconnect', () => {
+        setMySocketId(null);
+      });
       
-      socket.on('room:players', (players) => {
-        console.log('Room players updated:', players);
+      socket.on('socket-id', (data) => {
+        console.log('Socket ID received from server:', data.id);
+        setMySocketId(data.id);
+      });
+      
+      socket.on('room:players', (playerList) => {
+        console.log('Room players updated:', playerList);
+        // Deduplicate by sessionId (preferred) or socket id
+        const uniquePlayers = playerList
+          ? Array.from(new Map(playerList.map((p) => [(p.sessionId || p.id), p])).values())
+          : [];
+        console.log('Unique players after dedup:', uniquePlayers);
+        setPlayers(uniquePlayers);
+      });
+      
+      socket.on('drawer:changed', (data) => {
+        setCurrentDrawerId(data.drawerId);
+        setDrawerName(data.drawerName);
       });
       
       socketRef.current = socket;
@@ -60,6 +105,7 @@ export default function SoloPage() {
       const displayName = user.fullName || user.username || user.firstName || name;
       setName(displayName);
     }
+
   }, [user]);
 
   // Keep refs in sync with state so socket handlers always see latest
@@ -74,26 +120,74 @@ export default function SoloPage() {
   useEffect(() => {
     if (!router.isReady) return;
     const qRoom = typeof router.query.room === 'string' ? router.query.room : '';
-    const id = qRoom || createRoomId();
-    setRoomId(id);
+
+    // Prefer URL room, then stored room, else create one
+    let id = qRoom;
+    let savedStage = 'config';
+    let savedConfig = null;
+
     if (typeof window !== 'undefined') {
+      const storedRoom = localStorage.getItem(ROOM_STORAGE_KEY);
+      const storedStage = localStorage.getItem(STAGE_STORAGE_KEY);
+      const storedConfig = localStorage.getItem(CONFIG_STORAGE_KEY);
+      if (!id && storedRoom) id = storedRoom;
+      if (storedStage === 'play' || storedStage === 'config') savedStage = storedStage;
+      if (storedConfig) {
+        try { savedConfig = JSON.parse(storedConfig); } catch {}
+      }
+    }
+
+    if (!id) id = createRoomId();
+
+    setRoomId(id);
+    roomIdRef.current = id;
+
+    if (typeof window !== 'undefined') {
+      localStorage.setItem(ROOM_STORAGE_KEY, id);
       setShareLink(`${window.location.origin}/solo?room=${id}`);
     }
-    // If user arrived via a shared link (room in URL), treat as guest
-    if (qRoom) {
+
+    const hostFlag = router.query.host === '1';
+
+    // Decide stage: shared link without host flag forces play; host flag keeps host/config
+    if (qRoom && !hostFlag) {
       setIsGuest(true);
       setStage('play');
     } else {
       setIsGuest(false);
-      setStage('config');
+      setStage(savedStage || 'config');
     }
+
+    if (savedConfig) setConfig(savedConfig);
   }, [router.isReady, router.query.room]);
+
+  // Persist room changes (e.g., if host regenerates) so refresh keeps session
+  useEffect(() => {
+    if (!roomId) return;
+    if (typeof window !== 'undefined') {
+      localStorage.setItem(ROOM_STORAGE_KEY, roomId);
+    }
+  }, [roomId]);
+
+  // Persist stage changes
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    localStorage.setItem(STAGE_STORAGE_KEY, stage);
+  }, [stage]);
+
+  // Persist config changes
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    if (config) {
+      localStorage.setItem(CONFIG_STORAGE_KEY, JSON.stringify(config));
+    }
+  }, [config]);
 
   // Join the room when roomId and socket are ready
   useEffect(() => {
     if (!roomId || !socketRef.current) return;
     if (socketRef.current.connected) {
-      socketRef.current.emit('join-room', { roomId, name });
+      socketRef.current.emit('join-room', { roomId, name, sessionId: sessionIdRef.current });
     }
   }, [roomId, name]);
 
@@ -197,18 +291,34 @@ export default function SoloPage() {
         ) : (
           <div className="grid grid-cols-[280px_1fr_360px] gap-4 h-[calc(100vh-32px)]">
             <aside className="bg-slate-900/70 border border-slate-800 rounded-3xl p-4 flex flex-col shadow-[0_20px_60px_rgba(0,0,0,0.5)]">
-              <div className="text-lg font-black text-white">Scoreboard</div>
+              <div className="text-lg font-black text-white">Players in Room</div>
               <div className="mt-3 space-y-3 overflow-y-auto pr-1">
-                {soloRoster.map((player, idx) => (
-                  <div key={idx} className="flex items-center gap-3 px-3 py-2 rounded-2xl border border-slate-800 bg-slate-800/70 shadow-inner">
-                    <div className={`h-10 w-10 rounded-xl bg-gradient-to-br ${player.accent} text-slate-900 font-black flex items-center justify-center`}>#{idx + 1}</div>
-                    <div className="flex-1">
-                      <div className={`text-sm font-bold ${idx === 0 ? 'text-cyan-200' : 'text-slate-100'}`}>{player.name}</div>
-                      <div className="text-xs text-slate-400">{player.score} pts</div>
-                    </div>
-                    <span className="text-[11px] px-2 py-1 rounded-full bg-cyan-500/20 text-cyan-200 border border-cyan-500/40">{player.tag}</span>
+                {players.length > 0 ? (
+                  players.map((player, idx) => {
+                    const isCurrentDrawer = player.id === currentDrawerId;
+                    const isMe = player.id === mySocketId;
+                    return (
+                      <div key={player.id} className="flex items-center gap-3 px-3 py-2 rounded-2xl border border-slate-800 bg-slate-800/70 shadow-inner">
+                        <div className={`h-10 w-10 rounded-xl text-slate-900 font-black flex items-center justify-center ${isCurrentDrawer ? 'bg-gradient-to-br from-green-400 to-emerald-500' : 'bg-gradient-to-br from-cyan-400 to-blue-500'}`}>
+                          {isCurrentDrawer ? '✏️' : '#'}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className={`text-sm font-bold truncate ${isMe ? 'text-cyan-200' : isCurrentDrawer ? 'text-green-200' : 'text-slate-100'}`}>
+                            {player.name}
+                          </div>
+                          <div className="text-xs text-slate-400">{isCurrentDrawer ? 'Drawing now' : 'Watching'}</div>
+                        </div>
+                        {isMe && <span className="text-[11px] px-2 py-1 rounded-full bg-cyan-500/20 text-cyan-200 border border-cyan-500/40">You</span>}
+                        {isCurrentDrawer && <span className="text-[11px] px-2 py-1 rounded-full bg-green-500/20 text-green-200 border border-green-500/40">🎨</span>}
+                      </div>
+                    );
+                  })
+                ) : (
+                  <div className="text-center py-8 text-slate-400">
+                    <p className="text-sm">No players in room yet</p>
+                    <p className="text-xs mt-1">Share the link to invite others</p>
                   </div>
-                ))}
+                )}
               </div>
             </aside>
 
@@ -234,6 +344,9 @@ export default function SoloPage() {
                     mode={drawMode}
                     setMode={setDrawMode}
                     name={name}
+                    mySocketId={mySocketId}
+                    currentDrawerId={currentDrawerId}
+                    drawerName={drawerName}
                     onChangeBrushColor={setBrushColor}
                     onChangeBrushWidth={setBrushWidth}
                     channel="solo"
