@@ -16,15 +16,6 @@ export const DEFAULT_GAME_CONFIG = {
 };
 
 // Word pool for selection
-export const WORD_POOL = [
-  'cat', 'dog', 'house', 'tree', 'car', 'sun', 'moon', 'star', 'flower', 'bird',
-  'fish', 'boat', 'plane', 'train', 'bike', 'book', 'pen', 'phone', 'computer', 'chair',
-  'table', 'cup', 'bottle', 'hat', 'shoe', 'apple', 'banana', 'pizza', 'cake', 'ice cream',
-  'guitar', 'piano', 'drum', 'camera', 'clock', 'key', 'door', 'window', 'lamp', 'bed',
-  'umbrella', 'rainbow', 'cloud', 'mountain', 'beach', 'ocean', 'river', 'bridge', 'castle', 'rocket',
-  'butterfly', 'elephant', 'lion', 'giraffe', 'penguin', 'dolphin', 'turtle', 'frog', 'snake', 'spider'
-];
-
 // Score calculation constants
 export const SCORE_SETTINGS = {
   DRAWER_BASE_SCORE: 50

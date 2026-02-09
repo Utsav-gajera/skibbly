@@ -1,4 +1,7 @@
-import { WORD_POOL, SCORE_SETTINGS } from './constants.js';
+import { SCORE_SETTINGS } from './constants.js';
+import { getEasyWords } from './words/easyWords.js';
+import { getMediumWords } from './words/mediumWords.js';
+import { getHardWords } from './words/hardWords.js';
 
 /**
  * Game helper utilities
@@ -7,9 +10,15 @@ import { WORD_POOL, SCORE_SETTINGS } from './constants.js';
 /**
  * Select n random words from the word pool
  */
-export function selectRandomWords(count = 3) {
-  const shuffled = [...WORD_POOL].sort(() => Math.random() - 0.5);
-  return shuffled.slice(0, Math.min(count, WORD_POOL.length));
+export function selectRandomWords(count = 3, difficulty = 'medium') {
+  const pool = (() => {
+    if (difficulty === 'easy') return getEasyWords();
+    if (difficulty === 'hard') return getHardWords();
+    return getMediumWords();
+  })();
+
+  const shuffled = [...pool].sort(() => Math.random() - 0.5);
+  return shuffled.slice(0, Math.min(count, pool.length));
 }
 
 /**

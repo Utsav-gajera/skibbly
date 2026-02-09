@@ -177,7 +177,7 @@ export class GameManager {
    */
 
   sendWordSelectionPopup(socketId) {
-    const wordOptions = selectRandomWords(3);
+    const wordOptions = selectRandomWords(3, this.gameState?.config?.difficulty || 'medium');
     this.gameState.wordOptions = wordOptions;
 
     console.log('📝 [WORD_POPUP] Sending word selection popup to drawer:', {
