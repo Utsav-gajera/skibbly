@@ -50,8 +50,18 @@ export default function DrawingBoard({
 
   // If parent provides authoritative drawer info, prefer it.
   useEffect(() => {
-    if (!mySocketId || !currentDrawerId) return;
-    const amDrawer = mySocketId === currentDrawerId;
+    if (!mySocketId || !currentDrawerId) {
+      console.log('⚠️ [DRAWER_DETECTION] Missing drawer info:', { mySocketId, currentDrawerId });
+      return;
+    }
+    const amDrawer = mySocketId === currentDrawerId || `player-${mySocketId}` === currentDrawerId;
+    console.log('🔍 [DRAWER_DETECTION] Checking if I am the drawer:', {
+      mySocketId,
+      currentDrawerId,
+      check1_rawMatch: mySocketId === currentDrawerId,
+      check2_prefixMatch: `player-${mySocketId}` === currentDrawerId,
+      amDrawer
+    });
     isDrawerRef.current = amDrawer;
     setIsDrawer(amDrawer);
     if (drawerNameProp) setDrawerName(drawerNameProp);
@@ -76,11 +86,12 @@ export default function DrawingBoard({
 
     canvas.on('path:created', (e) => {
       if (!isDrawerRef.current) {
-        console.log('⛔ Path creation blocked: not the drawer');
+        console.log('⛔ Path creation blocked: not the drawer', { isDrawer: isDrawerRef.current, mySocketId: socketIdRef.current });
         const obj = e.path || e.target;
         if (obj) canvas.remove(obj);
         return;
       }
+      console.log('✅ Path creation allowed: I am the drawer');
       const obj = e.path || e.target;
       if (obj) obj.erasable = true;
       const payload = obj.toJSON();
@@ -211,7 +222,7 @@ export default function DrawingBoard({
     const onDrawerChanged = (data) => {
       lastDrawerIdRef.current = data?.drawerId ?? null;
       const currentSocketId = mySocketId || socketIdRef.current || socket?.id || socketRef.current?.id;
-      const amDrawer = data.drawerId === currentSocketId;
+      const amDrawer = data.drawerId === currentSocketId || `player-${currentSocketId}` === data.drawerId;
       console.log('👨‍🎨 Drawer changed event received:', {
         drawerId: data.drawerId,
         drawerName: data.drawerName,

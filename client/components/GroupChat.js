@@ -23,7 +23,13 @@ export default function GroupChat({ socketRef, name, title = 'Group Chat', chann
     const onMessage = (msg) => {
       if (roomId && msg?.roomId && msg.roomId !== roomId) return;
       if (channel && msg?.channel && msg.channel !== channel) return;
-      setMessages(prev => prev.some(m => m.user === msg.user && m.text === msg.text && m.channel === msg.channel && m.roomId === msg.roomId) ? prev : [...prev, msg]);
+      setMessages(prev => {
+        if (msg?.user === '') {
+          return [...prev, msg];
+        }
+        const isDuplicate = prev.some(m => m.user === msg.user && m.text === msg.text && m.channel === msg.channel && m.roomId === msg.roomId);
+        return isDuplicate ? prev : [...prev, msg];
+      });
     };
 
     const checkSocket = setInterval(() => {

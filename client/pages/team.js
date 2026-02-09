@@ -5,6 +5,9 @@ import { SignedIn, SignedOut, UserButton, useUser } from '@clerk/nextjs';
 import TeamModeConfig from '../components/TeamModeConfig';
 import DrawingBoard from '../components/DrawingBoard';
 import GroupChat from '../components/GroupChat';
+import Modal from '../components/Modal';
+import { useGameLogic } from '../hooks/useGameLogic';
+import { SOCKET_EVENTS } from '../utils/socketEvents';
 
 export default function TeamPage() {
   const router = useRouter();
@@ -17,61 +20,66 @@ export default function TeamPage() {
   const [drawMode, setDrawMode] = useState('pencil');
   const [stage, setStage] = useState('config');
   const [config, setConfig] = useState(null);
-  const [players, setPlayers] = useState([]);
   const [roomId, setRoomId] = useState('');
   const [shareLink, setShareLink] = useState('');
   const { user } = useUser();
-  const [currentDrawerId, setCurrentDrawerId] = useState(null);
-  const [drawerName, setDrawerName] = useState('');
   const [mySocketId, setMySocketId] = useState(null);
+  const [showWordModal, setShowWordModal] = useState(false);
+  const hasJoinedRef = useRef(false);
+  const hasStartedRef = useRef(false);
+  const pendingStartRef = useRef(null);
 
   const createRoomId = () => `room-${Math.random().toString(36).slice(2, 8)}`;
 
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
+  // Initialize sessionId IMMEDIATELY, not in useEffect
+  if (typeof window !== 'undefined' && !sessionIdRef.current) {
     let sid = sessionStorage.getItem(TAB_SESSION_KEY);
     if (!sid) {
       sid = `tab-${Math.random().toString(36).slice(2, 10)}-${Date.now().toString(36)}`;
       sessionStorage.setItem(TAB_SESSION_KEY, sid);
     }
     sessionIdRef.current = sid;
-  }, []);
+  }
 
   useEffect(() => {
-    const initSocket = async () => {
-      await fetch('/api/socket');
-      const socket = io({ path: '/api/socket' });
+    const setupSocket = async () => {
+      const socket = await initSocket();
       socketRef.current = socket;
+      setMySocketId(socket.id);
+
+      socket.on('socket-id', (data) => {
+        setMySocketId(data.id);
+      });
 
       socket.on('connect', () => {
-        console.log('Socket connected with ID:', socket.id);
         setMySocketId(socket.id);
+        if (pendingStartRef.current) {
+          startGameIfReady(pendingStartRef.current);
+        }
       });
       
       socket.on('disconnect', () => {
         setMySocketId(null);
+        hasJoinedRef.current = false;
       });
       
-      socket.on('socket-id', (data) => {
-        console.log('Socket ID received from server:', data.id);
-        setMySocketId(data.id);
-      });
-
-      socket.on('room:players', (list) => {
-        setPlayers(list || []);
-      });
-      
-      socket.on('drawer:changed', (data) => {
-        setCurrentDrawerId(data.drawerId);
-        setDrawerName(data.drawerName);
-      });
+      // Join room ONCE if already connected
+      if (roomId && name && socket.connected && !hasJoinedRef.current) {
+        joinRoom(roomId);
+        hasJoinedRef.current = true;
+      }
     };
-    initSocket();
+    setupSocket();
     setStage('config');
     setConfig(null);
-    setPlayers([]);
     return () => socketRef.current?.disconnect();
   }, []);
+
+  useEffect(() => {
+    if (!roomId || !name || !socketRef.current?.connected || hasJoinedRef.current) return;
+    joinRoom(roomId);
+    hasJoinedRef.current = true;
+  }, [roomId, name]);
 
   useEffect(() => {
     if (user) {
@@ -95,10 +103,57 @@ export default function TeamPage() {
     socketRef.current.emit('join-room', { roomId: id, name, sessionId: sessionIdRef.current });
   };
 
+  const mapConfigToGameConfig = (cfg, minPlayers = 2) => ({
+    totalRounds: cfg?.rounds ?? 6,
+    drawTime: cfg?.timePerGuess ?? 60,
+    wordChooseTime: 8,
+    scoreboardDisplayTime: 8,
+    minPlayers
+  });
+
+  const startGameIfReady = (cfg) => {
+    const socket = socketRef.current;
+    if (!socket || !roomId || !name) return;
+    if (!hasJoinedRef.current) {
+      joinRoom(roomId);
+      hasJoinedRef.current = true;
+    }
+    if (!hasStartedRef.current) {
+      socket.emit('game:start', mapConfigToGameConfig(cfg, 2));
+      hasStartedRef.current = true;
+    }
+  };
+
+  const {
+    gamePhase,
+    currentRound,
+    totalRounds,
+    players,
+    leaderboard,
+    roundScores,
+    currentDrawerId,
+    drawerName,
+    wordOptions,
+    selectedWord,
+    timeRemaining,
+    canSelectWord,
+    isDrawer
+  } = useGameLogic(socketRef, roomId);
+
+  const amDrawer = isDrawer(mySocketId);
+  const wordDisplay = selectedWord
+    ? (amDrawer ? selectedWord : '•'.repeat(selectedWord.length))
+    : '────────';
+
+  useEffect(() => {
+    setShowWordModal(wordOptions?.length > 0 && amDrawer && canSelectWord());
+  }, [wordOptions, amDrawer, canSelectWord]);
+
   const startTeam = (cfg) => {
     setConfig(cfg);
     setStage('play');
-    joinRoom(roomId);
+    pendingStartRef.current = cfg;
+    startGameIfReady(cfg);
   };
 
   const quickJoin = () => {
@@ -110,15 +165,14 @@ export default function TeamPage() {
   const roster = (players?.length ? players : []).map((p, idx) => ({
     id: p?.id || `player-${idx}`,
     name: p?.name || `Player-${idx + 1}`,
-    score: Math.max(0, 1600 - idx * 180),
+    score: Math.max(0, p?.score ?? 0),
     accent: accent[idx % accent.length],
-    isSelf: p?.id === mySocketId,
+    isSelf: mySocketId ? p?.id === `player-${mySocketId}` : false,
     rank: idx + 1,
   }));
 
-  const timeLabel = `${config?.timePerGuess ?? 60}s`;
-  const roundLabel = `Round 1 of ${config?.rounds ?? 6}`;
-  const wordMask = '────────';
+  const timeLabel = gamePhase === 'DRAWING' ? `${Math.max(0, timeRemaining)}s` : `${config?.timePerGuess ?? 60}s`;
+  const roundLabel = `Round ${currentRound} of ${totalRounds}`;
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100">
@@ -185,9 +239,9 @@ export default function TeamPage() {
                 <p className="text-cyan-300">Players join appear here once connected.</p>
               </div>
               <div className="mt-3 space-y-2">
-                {(players?.length ? players : ['Waiting for players…']).map((p, idx) => (
+                {(players?.length ? players : [{ name: 'Waiting for players…' }]).map((p, idx) => (
                   <div key={idx} className="px-3 py-2 rounded-xl bg-slate-800/80 border border-slate-700 text-sm text-slate-200">
-                    {p}
+                    {p?.name}
                   </div>
                 ))}
               </div>
@@ -218,6 +272,24 @@ export default function TeamPage() {
                 <span className="font-semibold text-cyan-300">{roomId || 'room-code'}</span>
               </div>
               <div className="mt-1 text-lg font-black text-white">Players</div>
+              {gamePhase === 'SCOREBOARD' && (
+                <div className="mt-3 rounded-2xl border border-emerald-500/40 bg-emerald-500/10 p-3">
+                  <div className="text-xs font-semibold text-emerald-200 uppercase tracking-[0.18em]">Turn Scoreboard</div>
+                  <div className="mt-2 space-y-2">
+                    {leaderboard.length > 0 ? leaderboard.map((entry, idx) => (
+                      <div key={entry.id} className="flex items-center justify-between text-sm text-slate-100">
+                        <div className="truncate">
+                          <span className="text-emerald-300 font-bold mr-2">#{idx + 1}</span>
+                          {entry.name}
+                        </div>
+                        <span className="px-2 py-1 rounded-full bg-emerald-500/20 text-emerald-100 text-xs border border-emerald-400/40">{entry.score ?? 0} pts</span>
+                      </div>
+                    )) : (
+                      <div className="text-xs text-emerald-200">No scores yet</div>
+                    )}
+                  </div>
+                </div>
+              )}
               <div className="mt-3 space-y-3 overflow-y-auto pr-1">
                 {roster.length > 0 ? (
                   roster.map((player) => {
@@ -236,6 +308,7 @@ export default function TeamPage() {
                           </div>
                           <div className="text-xs text-slate-400">{isCurrentDrawer ? 'Drawing now' : 'Ready'}</div>
                         </div>
+                        <span className="text-[11px] px-2 py-1 rounded-full bg-slate-700 text-slate-100 border border-slate-600">{player.score ?? 0} pts</span>
                         {player.isSelf && <span className="text-[11px] px-2 py-1 rounded-full bg-cyan-500/20 text-cyan-200 border border-cyan-500/40">You</span>}
                         {isCurrentDrawer && !player.isSelf && <span className="text-[11px] px-2 py-1 rounded-full bg-green-500/20 text-green-200 border border-green-500/40">🎨</span>}
                       </div>
@@ -254,7 +327,7 @@ export default function TeamPage() {
                 <span className="text-amber-200 uppercase tracking-[0.12em] text-[11px]">{roundLabel}</span>
                 <div className="flex items-center justify-center gap-1.5 text-sm font-black text-white">
                   <span className="text-emerald-300 text-xs">Guess this</span>
-                  <span className="tracking-[0.3em] text-slate-200 text-xs">{wordMask}</span>
+                  <span className="tracking-[0.3em] text-slate-200 text-xs">{wordDisplay}</span>
                 </div>
                 <div className="flex items-center justify-end gap-1.5 text-[11px]">
                   <span className="px-2 py-1 rounded-full bg-emerald-500/15 text-emerald-200 border border-emerald-500/30">{timeLabel}</span>
@@ -274,12 +347,41 @@ export default function TeamPage() {
                     mySocketId={mySocketId}
                     currentDrawerId={currentDrawerId}
                     drawerName={drawerName}
+                    selectedWord={amDrawer ? selectedWord : null}
                     onChangeBrushColor={setBrushColor}
                     onChangeBrushWidth={setBrushWidth}
                     roomId={roomId}
                     channel="team"
                   />
                 </div>
+
+                {gamePhase === 'SCOREBOARD' && (
+                  <div className="absolute inset-0 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center z-20">
+                    <div className="w-[min(420px,90%)] rounded-3xl border border-emerald-500/40 bg-slate-900/90 p-6 shadow-[0_20px_60px_rgba(0,0,0,0.6)]">
+                      <div className="text-center text-emerald-200 text-xs uppercase tracking-[0.2em]">Turn Scoreboard</div>
+                      <div className="mt-1 text-center text-lg font-black text-white">Points Distribution</div>
+                      <div className="mt-4 space-y-2">
+                        {leaderboard.length > 0 ? leaderboard
+                          .map(entry => ({
+                            ...entry,
+                            roundScore: roundScores[entry.id] || 0
+                          }))
+                          .sort((a, b) => b.roundScore - a.roundScore)
+                          .map((entry, idx) => (
+                          <div key={entry.id} className="flex items-center justify-between text-sm text-slate-100">
+                            <div className="truncate">
+                              <span className="text-emerald-300 font-bold mr-2">#{idx + 1}</span>
+                              {entry.name}
+                            </div>
+                            <span className="px-2 py-1 rounded-full bg-emerald-500/20 text-emerald-100 text-xs border border-emerald-400/40">+{entry.roundScore} pts</span>
+                          </div>
+                        )) : (
+                          <div className="text-xs text-emerald-200">No scores yet</div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* <div className="mt-3 grid grid-cols-3 gap-3 text-xs font-semibold">
@@ -295,6 +397,34 @@ export default function TeamPage() {
           </div>
         )}
       </main>
+
+      <Modal isOpen={showWordModal} onClose={() => {}} closeOnOverlay={false}>
+        <div className="text-center mb-6">
+          <h2 className="text-3xl font-black bg-gradient-to-r from-cyan-600 via-blue-600 to-indigo-600 bg-clip-text text-transparent mb-2">
+            🎨 Choose Your Word
+          </h2>
+          <p className="text-slate-600 font-medium">Select one word to draw this round</p>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+          {wordOptions.map((word) => (
+            <button
+              key={word}
+              onClick={() => {
+                socketRef.current?.emit(SOCKET_EVENTS.WORD_SELECTED, { word });
+                setShowWordModal(false);
+              }}
+              className="group relative overflow-hidden bg-gradient-to-br from-blue-50 to-purple-50 hover:from-blue-100 hover:to-purple-100 border-2 border-transparent hover:border-purple-400 rounded-2xl p-6 transition-all duration-300 transform hover:scale-105 hover:shadow-xl"
+            >
+              <div className="absolute inset-0 bg-gradient-to-br from-blue-400/0 to-purple-400/0 group-hover:from-blue-400/10 group-hover:to-purple-400/10 transition-all duration-300"></div>
+              <div className="relative">
+                <div className="text-3xl mb-2">✨</div>
+                <div className="text-lg font-bold text-slate-800 capitalize">{word}</div>
+              </div>
+            </button>
+          ))}
+        </div>
+      </Modal>
     </div>
   );
 }
