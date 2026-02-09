@@ -173,7 +173,13 @@ export function useGameLogic(socketRef, roomId) {
         setLeaderboard(data.scores);
         setRoundScores(data.roundScores || {});
         setCurrentRound(data.round);
-        setPlayers(data.scores || []);
+        // Update scores but keep players list order as join order
+        setPlayers((prev) => {
+          const incoming = data.scores || [];
+          if (!prev || prev.length === 0) return incoming;
+          const scoreMap = new Map(incoming.map((p) => [p.id, p.score]));
+          return prev.map((p) => (scoreMap.has(p.id) ? { ...p, score: scoreMap.get(p.id) } : p));
+        });
         
         // Show scoreboard UI for 8 seconds
         // Auto-advance after display time

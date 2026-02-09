@@ -1,6 +1,8 @@
 // This file is not currently used - all socket logic moved to socket.js and useGameLogic.js
 // Kept for potential future use
 
+const useGameRoom = () => {
+  useEffect(() => {
     socketRef.current.on('room:players', handlePlayers);
     socketRef.current.on('drawer:changed', handleDrawer);
 

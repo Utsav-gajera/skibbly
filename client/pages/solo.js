@@ -161,8 +161,10 @@ export default function SoloPage() {
     setShowWordModal(shouldShow);
   }, [wordOptions, amDrawer, canSelectWord, mySocketId, currentDrawerId, gamePhase]);
 
-  const timeLabel = gamePhase === 'DRAWING' ? `${Math.max(0, timeRemaining)}s` : `${config?.timePerGuess ?? 60}s`;
+  const timeLabel = gamePhase === 'DRAWING' ? `${Math.max(0, timeRemaining)}s` : `${config?.timePerGuess}s`;
   const roundLabel = `Round ${currentRound} of ${totalRounds}`;
+  const rankedPlayers = [...(players || [])].sort((a, b) => (b?.score ?? 0) - (a?.score ?? 0));
+  const rankMap = new Map(rankedPlayers.map((player, index) => [player.id, index + 1]));
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100">
@@ -276,7 +278,7 @@ export default function SoloPage() {
                     return (
                       <div key={player.id} className="flex items-center gap-3 px-3 py-2 rounded-2xl border border-slate-800 bg-slate-800/70 shadow-inner">
                         <div className={`h-10 w-10 rounded-xl text-slate-900 font-black flex items-center justify-center ${isCurrentDrawer ? 'bg-gradient-to-br from-green-400 to-emerald-500' : 'bg-gradient-to-br from-cyan-400 to-blue-500'}`}>
-                          {isCurrentDrawer ? '✏️' : '#'}
+                          {rankMap.get(player.id) ?? '-'}
                         </div>
                         <div className="flex-1 min-w-0">
                           <div className={`text-sm font-bold truncate ${isMe ? 'text-cyan-200' : isCurrentDrawer ? 'text-green-200' : 'text-slate-100'}`}>

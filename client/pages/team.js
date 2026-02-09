@@ -162,13 +162,15 @@ export default function TeamPage() {
   };
 
   const accent = ['from-cyan-400 to-blue-500', 'from-amber-400 to-orange-500', 'from-emerald-400 to-teal-500', 'from-pink-400 to-rose-500', 'from-indigo-400 to-purple-500'];
+  const rankedPlayers = [...(players || [])].sort((a, b) => (b?.score ?? 0) - (a?.score ?? 0));
+  const rankMap = new Map(rankedPlayers.map((player, index) => [player.id, index + 1]));
   const roster = (players?.length ? players : []).map((p, idx) => ({
     id: p?.id || `player-${idx}`,
     name: p?.name || `Player-${idx + 1}`,
     score: Math.max(0, p?.score ?? 0),
     accent: accent[idx % accent.length],
     isSelf: mySocketId ? p?.id === `player-${mySocketId}` : false,
-    rank: idx + 1,
+    rank: rankMap.get(p?.id) ?? (idx + 1),
   }));
 
   const timeLabel = gamePhase === 'DRAWING' ? `${Math.max(0, timeRemaining)}s` : `${config?.timePerGuess ?? 60}s`;
@@ -300,7 +302,7 @@ export default function TeamPage() {
                         className={`flex items-center gap-3 px-3 py-2 rounded-2xl border border-slate-800 bg-slate-800/70 shadow-inner`}
                       >
                         <div className={`h-10 w-10 rounded-xl text-slate-900 font-black flex items-center justify-center ${isCurrentDrawer ? 'bg-gradient-to-br from-green-400 to-emerald-500' : `bg-gradient-to-br ${player.accent}`}`}>
-                          {isCurrentDrawer ? '✏️' : `#${player.rank}`}
+                          {isCurrentDrawer ? '✏️' : player.rank}
                         </div>
                         <div className="flex-1 min-w-0">
                           <div className={`text-sm font-bold truncate ${player.isSelf ? 'text-cyan-200' : isCurrentDrawer ? 'text-green-200' : 'text-slate-100'}`}>

@@ -30,8 +30,6 @@ export default function DrawingBoard({
   const [drawerName, setDrawerName] = useState('');
   const lastDrawerIdRef = useRef(null);
   const [socketId, setSocketId] = useState(null);
-  const [timeRemaining, setTimeRemaining] = useState(60);
-  const timerRef = useRef(null);
   const socketIdRef = useRef(null); // Declare at top so it's always accessible
   const [socket, setSocket] = useState(null);
 
@@ -258,21 +256,6 @@ export default function DrawingBoard({
         }
       }
       
-      // Start timer for the turn
-      const turnDuration = data.turnDuration || 60000;
-      setTimeRemaining(Math.ceil(turnDuration / 1000));
-      
-      if (timerRef.current) clearInterval(timerRef.current);
-      timerRef.current = setInterval(() => {
-        setTimeRemaining((prev) => {
-          if (prev <= 1) {
-            clearInterval(timerRef.current);
-            console.log('⏰ Timer ended! Turn rotating...');
-            return 0;
-          }
-          return prev - 1;
-        });
-      }, 1000);
     };
     // Expose handlers to the socket-binding effect via refs
     handlersRef.current = { onDraw, onClear, onCanvasJson, onDrawerChanged };
@@ -674,9 +657,6 @@ export default function DrawingBoard({
         <div className="flex items-center gap-3">
           <div className={`px-3 py-1.5 rounded-lg text-sm font-semibold ${isDrawer ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
             {isDrawer ? '✏️ Your turn to draw' : `👀 Watching ${drawerName || 'other player'}`}
-          </div>
-          <div className={`px-3 py-1.5 rounded-lg text-sm font-bold ${timeRemaining <= 10 ? 'bg-orange-100 text-orange-700 animate-pulse' : 'bg-blue-100 text-blue-700'}`}>
-            ⏱️ {timeRemaining}s
           </div>
         </div>
 

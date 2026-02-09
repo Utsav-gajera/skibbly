@@ -20,6 +20,8 @@ export class GameManager {
     this.timers = {}; // Track all active timers for cleanup
     this.hostId = null;
     this.players = new Map(); // socketId -> player info
+    this.pendingRoundScores = {};
+    this.roundScores = {};
   }
 
   /**
@@ -42,6 +44,11 @@ export class GameManager {
 
   removePlayer(socketId) {
     this.players.delete(socketId);
+  }
+
+  addPendingScore(playerId, points) {
+    if (!this.pendingRoundScores[playerId]) this.pendingRoundScores[playerId] = 0;
+    this.pendingRoundScores[playerId] += points;
   }
 
   setHost(socketId) {
@@ -307,12 +314,8 @@ export class GameManager {
       const maxTimeMs = this.gameState.config.drawTime * 1000;
       const guesserScore = calculateGuesserScore(remainingTimeMs, maxTimeMs);
 
-      this.gameState.addPlayerScore(guesser.id, guesserScore);
-      
-      // Track round score
-      if (!this.roundScores) this.roundScores = {};
-      if (!this.roundScores[guesser.id]) this.roundScores[guesser.id] = 0;
-      this.roundScores[guesser.id] += guesserScore;
+      // Defer score application until end of turn
+      this.addPendingScore(guesser.id, guesserScore);
 
       // Broadcast correct guess
       this.io.to(this.roomId).emit(SOCKET_EVENTS.CORRECT_GUESS, {
@@ -369,13 +372,16 @@ export class GameManager {
     if (correctGuesses > 0) {
       const drawer = this.gameState.currentPlayer;
       const drawerScore = calculateDrawerScore(correctGuesses);
-      this.gameState.addPlayerScore(drawer.id, drawerScore);
-      
-      // Track drawer's round score
-      if (!this.roundScores) this.roundScores = {};
-      if (!this.roundScores[drawer.id]) this.roundScores[drawer.id] = 0;
-      this.roundScores[drawer.id] += drawerScore;
+      this.addPendingScore(drawer.id, drawerScore);
     }
+
+    // Apply pending scores at end of turn
+    const pendingScores = this.pendingRoundScores || {};
+    Object.entries(pendingScores).forEach(([playerId, points]) => {
+      this.gameState.addPlayerScore(playerId, points);
+    });
+    this.roundScores = { ...pendingScores };
+    this.pendingRoundScores = {};
 
     // Broadcast turn ended
     this.io.to(this.roomId).emit(SOCKET_EVENTS.TURN_ENDED, {
