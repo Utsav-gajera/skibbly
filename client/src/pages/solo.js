@@ -5,6 +5,7 @@ import SoloModeConfig from '../components/SoloModeConfig';
 import DrawingBoard from '../components/DrawingBoard';
 import GroupChat from '../components/GroupChat';
 import Modal from '../components/Modal';
+import LeaderboardModal from '../components/LeaderboardModal';
 import { useGameLogic } from '../hooks/useGameLogic';
 import { SOCKET_EVENTS } from '../utils/socketEvents';
 import { initSocket, joinRoom } from '../utils/socket';
@@ -30,6 +31,7 @@ export default function SoloPage() {
   const hasJoinedRef = useRef(false);
   const hasStartedRef = useRef(false);
   const pendingStartRef = useRef(null);
+  const endResetTimerRef = useRef(null);
 
   const { user } = useAuth();
 
@@ -168,10 +170,35 @@ export default function SoloPage() {
     setShowWordModal(shouldShow);
   }, [wordOptions, amDrawer, canSelectWord, mySocketId, currentDrawerId, gamePhase]);
 
+  useEffect(() => {
+    if (endResetTimerRef.current) {
+      clearTimeout(endResetTimerRef.current);
+      endResetTimerRef.current = null;
+    }
+
+    if (gamePhase === 'GAME_ENDED') {
+      endResetTimerRef.current = setTimeout(() => {
+        setStage('config');
+        setConfig(null);
+        hasStartedRef.current = false;
+        pendingStartRef.current = null;
+      }, 12000);
+    }
+
+    return () => {
+      if (endResetTimerRef.current) {
+        clearTimeout(endResetTimerRef.current);
+        endResetTimerRef.current = null;
+      }
+    };
+  }, [gamePhase]);
+
   const timeLabel = gamePhase === 'DRAWING' ? `${Math.max(0, timeRemaining)}s` : `${config?.timePerGuess}s`;
   const roundLabel = `Round ${currentRound} of ${totalRounds}`;
   const rankedPlayers = [...(players || [])].sort((a, b) => (b?.score ?? 0) - (a?.score ?? 0));
   const rankMap = new Map(rankedPlayers.map((player, index) => [player.id, index + 1]));
+  const finalLeaderboard = leaderboard?.length ? leaderboard : players;
+  const showLeaderboardModal = gamePhase === 'GAME_ENDED' && stage === 'play';
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100">
@@ -335,6 +362,12 @@ export default function SoloPage() {
           </div>
         )}
       </main>
+
+      <LeaderboardModal
+        isOpen={showLeaderboardModal}
+        players={finalLeaderboard}
+        onClose={() => {}}
+      />
 
       <Modal isOpen={showWordModal} onClose={() => {}} closeOnOverlay={false}>
         <div className="text-center mb-6">

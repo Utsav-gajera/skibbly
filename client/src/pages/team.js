@@ -6,6 +6,7 @@ import TeamModeConfig from '../components/TeamModeConfig';
 import DrawingBoard from '../components/DrawingBoard';
 import GroupChat from '../components/GroupChat';
 import Modal from '../components/Modal';
+import LeaderboardModal from '../components/LeaderboardModal';
 import { useGameLogic } from '../hooks/useGameLogic';
 import { SOCKET_EVENTS } from '../utils/socketEvents';
 
@@ -29,6 +30,7 @@ export default function TeamPage() {
   const hasJoinedRef = useRef(false);
   const hasStartedRef = useRef(false);
   const pendingStartRef = useRef(null);
+  const endResetTimerRef = useRef(null);
 
   const createRoomId = () => `room-${Math.random().toString(36).slice(2, 8)}`;
 
@@ -151,6 +153,29 @@ export default function TeamPage() {
     setShowWordModal(wordOptions?.length > 0 && amDrawer && canSelectWord());
   }, [wordOptions, amDrawer, canSelectWord]);
 
+  useEffect(() => {
+    if (endResetTimerRef.current) {
+      clearTimeout(endResetTimerRef.current);
+      endResetTimerRef.current = null;
+    }
+
+    if (gamePhase === 'GAME_ENDED') {
+      endResetTimerRef.current = setTimeout(() => {
+        setStage('config');
+        setConfig(null);
+        hasStartedRef.current = false;
+        pendingStartRef.current = null;
+      }, 12000);
+    }
+
+    return () => {
+      if (endResetTimerRef.current) {
+        clearTimeout(endResetTimerRef.current);
+        endResetTimerRef.current = null;
+      }
+    };
+  }, [gamePhase]);
+
   const startTeam = (cfg) => {
     if ((players?.length ?? 0) < 2) {
       setStartError('Minimum 2 players needed to start game.');
@@ -182,6 +207,8 @@ export default function TeamPage() {
 
   const timeLabel = gamePhase === 'DRAWING' ? `${Math.max(0, timeRemaining)}s` : `${config?.timePerGuess ?? 60}s`;
   const roundLabel = `Round ${currentRound} of ${totalRounds}`;
+  const finalLeaderboard = leaderboard?.length ? leaderboard : players;
+  const showLeaderboardModal = gamePhase === 'GAME_ENDED' && stage === 'play';
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100">
@@ -358,6 +385,12 @@ export default function TeamPage() {
           </div>
         )}
       </main>
+
+      <LeaderboardModal
+        isOpen={showLeaderboardModal}
+        players={finalLeaderboard}
+        onClose={() => {}}
+      />
 
       <Modal isOpen={showWordModal} onClose={() => {}} closeOnOverlay={false}>
         <div className="text-center mb-6">
