@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/router';
 import { io } from 'socket.io-client';
-import { SignedIn, SignedOut, UserButton, useUser } from '@clerk/nextjs';
+import { useAuth } from '../context/AuthContext';
 import TeamModeConfig from '../components/TeamModeConfig';
 import DrawingBoard from '../components/DrawingBoard';
 import GroupChat from '../components/GroupChat';
@@ -22,7 +22,7 @@ export default function TeamPage() {
   const [config, setConfig] = useState(null);
   const [roomId, setRoomId] = useState('');
   const [shareLink, setShareLink] = useState('');
-  const { user } = useUser();
+  const { user } = useAuth();
   const [mySocketId, setMySocketId] = useState(null);
   const [showWordModal, setShowWordModal] = useState(false);
   const [startError, setStartError] = useState('');
@@ -84,7 +84,7 @@ export default function TeamPage() {
 
   useEffect(() => {
     if (user) {
-      const displayName = user.fullName || user.username || user.firstName || name;
+      const displayName = user.name || user.email || name;
       setName(displayName);
     }
   }, [user]);
@@ -185,55 +185,6 @@ export default function TeamPage() {
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100">
-      {/* <header className="flex items-center justify-between px-6 py-4 border-b border-slate-800 bg-slate-900/60 backdrop-blur-xl shadow-[0_10px_40px_rgba(0,0,0,0.4)]">
-        <div className="flex items-center gap-3">
-          <button
-            onClick={() => router.push('/home')}
-            className="px-3 py-2 rounded-xl border border-slate-700 text-slate-200 hover:border-cyan-400 hover:text-white transition-all duration-200 bg-slate-800/70"
-          >
-            ← Back
-          </button>
-          <div>
-            <p className="text-xs uppercase tracking-[0.2em] text-slate-400">Team Arena</p>
-            <h1 className="text-2xl font-black tracking-tight bg-gradient-to-r from-cyan-400 via-sky-400 to-indigo-400 bg-clip-text text-transparent">
-              Skibbly Live
-            </h1>
-          </div>
-        </div>
-
-        <SignedIn>
-          <div className="flex items-center gap-3">
-            <div className="hidden sm:flex items-center gap-2 px-3 py-2 rounded-xl bg-slate-800/70 border border-slate-700 text-slate-200">
-              <span className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-br from-cyan-500 to-blue-600 text-white">🎨</span>
-              <span className="font-semibold">Skibbly</span>
-            </div>
-            <span className="hidden sm:inline text-slate-400 font-semibold">Hi, {name}</span>
-            <UserButton
-              appearance={{
-                elements: {
-                  avatarBox: 'h-10 w-10',
-                  userButtonTrigger: 'h-11 w-11 rounded-full bg-gradient-to-br from-cyan-500 to-blue-600 text-white shadow-lg ring-2 ring-slate-700 hover:ring-cyan-400 transition',
-                },
-              }}
-              afterSignOutUrl="/"
-            />
-          </div>
-        </SignedIn>
-
-        <SignedOut>
-          <div className="flex items-center gap-3">
-            <input
-              className="border border-slate-700 rounded-xl px-4 py-2.5 font-semibold text-slate-100 bg-slate-800/70 focus:border-cyan-400 outline-none"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-            />
-            <div className="w-10 h-10 rounded-full bg-gradient-to-br from-cyan-500 to-blue-600 flex items-center justify-center text-white font-bold shadow-lg ring-2 ring-slate-800">
-              {name.charAt(0).toUpperCase()}
-            </div>
-          </div>
-        </SignedOut>
-      </header> */}
-
       <main className="px-4 pb-3 pt-3">
         {stage === 'config' ? (
           <div className="grid grid-cols-[280px_1fr_360px] gap-4 h-[calc(100vh-32px)]">

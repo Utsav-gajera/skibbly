@@ -11,8 +11,8 @@ export const GAME_PHASES = {
 export const DEFAULT_GAME_CONFIG = {
   totalRounds: 3,
   drawTime: 60,
-  wordChooseTime: 8,
-  scoreboardDisplayTime: 4
+  wordChooseTime: 12,
+  scoreboardDisplayTime: 8
 };
 
 // Word pool for selection

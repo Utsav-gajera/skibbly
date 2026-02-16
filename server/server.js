@@ -4,9 +4,8 @@ import cors from "cors";
 import "dotenv/config";
 import connectDB from "./config/db.js";
 import * as Sentry from "@sentry/node";
-import { ClerkWebhook } from "./controllers/webhooks.js";
+import authRoutes from "./routes/auth.js";
 import connectCloudinary from "./config/cloudinary.js";
-import { clerkMiddleware } from "@clerk/express";
 
 // initialize express
 const app = express();
@@ -16,18 +15,18 @@ await connectDB();
 await connectCloudinary();
 
 // middlewares
-app.use(cors());
-
-// Clerk webhook 
-app.post("/api/webhooks", express.raw({ type: "application/json" }), ClerkWebhook);
+app.use(
+  cors({
+    origin: process.env.CLIENT_ORIGIN || "http://localhost:3000",
+    credentials: true
+  })
+);
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// Clerk middleware for authenticated API routes
-app.use(clerkMiddleware());
-
-// API routes
+// Auth routes
+app.use("/api/auth", authRoutes);
 
 
 // routes

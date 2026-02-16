@@ -9,8 +9,9 @@ const connectDB = async () => {
         console.log('MongoDB connected');
     });
 
-    await mongoose.connect(`${process.env.MONGODB_URI}/skibbly`, {
-        
+    const baseUri = (process.env.MONGODB_URI || '').replace(/\/+$/, '');
+    await mongoose.connect(`${baseUri}/skibbly`, {
+      
     });
 }
 export default connectDB;

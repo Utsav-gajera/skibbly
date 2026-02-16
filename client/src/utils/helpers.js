@@ -25,6 +25,6 @@ export const getOrCreateSessionId = (key) => {
 export const deduplicatePlayers = (players) => 
   players ? Array.from(new Map(players.map(p => [(p.sessionId || p.id), p])).values()) : [];
 
-// Get user display name from Clerk user object
+// Get user display name from auth user object
 export const getUserDisplayName = (user, fallback) => 
   user?.fullName || user?.username || user?.firstName || fallback;

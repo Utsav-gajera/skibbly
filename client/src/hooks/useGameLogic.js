@@ -133,9 +133,6 @@ export function useGameLogic(socketRef, roomId) {
         // Update UI to show correct guess
         displayCorrectGuess(data.guesserName, data.correctWord);
         
-        // Update scores immediately for guesser only
-        updatePlayerScore(data.guesserId, data.guesserScore);
-        
         // Update guess count
         setGuessCount(data.totalGuessed);
         

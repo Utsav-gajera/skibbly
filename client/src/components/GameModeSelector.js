@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/router';
-import { SignedIn, SignedOut, SignInButton, SignUpButton, UserButton, useUser } from '@clerk/nextjs';
+import { useAuth } from '../context/AuthContext';
 
 const gameModes = [
   { id: 'solo', title: 'Solo Mode', icon: '🎨', description: 'Draw freely on your own canvas', color: 'from-blue-500 to-cyan-500', shadowColor: 'shadow-blue-500/50' },
@@ -10,7 +10,7 @@ const gameModes = [
   { id: 'custom', title: 'Custom Mode', icon: '⚙️', description: 'Create your own game rules', color: 'from-orange-500 to-red-500', shadowColor: 'shadow-orange-500/50' }
 ];
 
-const NavHeader = ({ user, router }) => (
+const NavHeader = ({ user, router, onLogout }) => (
   <header className="w-full bg-white/90 backdrop-blur shadow-sm border-b border-purple-100">
     <div className="max-w-6xl mx-auto flex items-center justify-between px-4 py-3">
       <div className="flex items-center gap-2">
@@ -20,29 +20,33 @@ const NavHeader = ({ user, router }) => (
         </button>
         <span className="hidden sm:inline-flex text-[11px] font-semibold px-2 py-1 rounded-full bg-purple-50 text-purple-700 border border-purple-100">Live</span>
       </div>
-      <SignedIn>
+      {user ? (
         <div className="flex items-center gap-3 text-sm text-gray-700 ml-auto">
           <div className="hidden sm:flex items-center gap-2 px-3 py-2 rounded-lg bg-purple-50 text-purple-700 font-semibold">
             <span className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-br from-purple-600 to-pink-500 text-white">🎨</span>
             <span>Skibbly</span>
           </div>
-          <span className="hidden sm:inline text-gray-500">Hi, {user?.firstName || 'Player'}</span>
-          <UserButton appearance={{ elements: { avatarBox: 'h-10 w-10', userButtonTrigger: 'h-11 w-11 rounded-full bg-gradient-to-br from-purple-600 to-pink-500 text-white shadow-lg ring-2 ring-purple-100 hover:ring-purple-200 transition' } }} afterSignOutUrl="/" />
+          <span className="hidden sm:inline text-gray-500">Hi, {user?.name || user?.email || 'Player'}</span>
+          <button
+            onClick={onLogout}
+            className="h-10 px-4 rounded-full bg-gradient-to-br from-purple-600 to-pink-500 text-white shadow-lg ring-2 ring-purple-100 hover:ring-purple-200 transition"
+          >
+            Sign out
+          </button>
         </div>
-      </SignedIn>
-      <SignedOut>
+      ) : (
         <div className="flex items-center gap-3 text-sm ml-auto">
-          <SignInButton mode="modal"><button className="text-purple-700 hover:text-purple-800 px-3 py-2 rounded-lg hover:bg-purple-50">Sign in</button></SignInButton>
-          <SignUpButton mode="modal"><button className="bg-purple-700 text-white px-4 py-2 rounded-full hover:bg-purple-800 shadow-sm">Sign up</button></SignUpButton>
+          <button onClick={() => router.push('/login')} className="text-purple-700 hover:text-purple-800 px-3 py-2 rounded-lg hover:bg-purple-50">Sign in</button>
+          <button onClick={() => router.push('/register')} className="bg-purple-700 text-white px-4 py-2 rounded-full hover:bg-purple-800 shadow-sm">Sign up</button>
         </div>
-      </SignedOut>
+      )}
     </div>
   </header>
 );
 
 export default function GameModeSelector({ onSelectMode }) {
   const router = useRouter();
-  const { user } = useUser();
+  const { user, logout } = useAuth();
   const [hoveredMode, setHoveredMode] = useState(null);
 
   return (
@@ -51,7 +55,7 @@ export default function GameModeSelector({ onSelectMode }) {
       <div className="absolute bottom-0 right-0 w-96 h-96 bg-purple-400/20 rounded-full blur-3xl animate-pulse" style={{ animationDelay: '1s' }}></div>
       <div className="absolute top-1/2 left-1/2 w-96 h-96 bg-pink-400/20 rounded-full blur-3xl animate-pulse" style={{ animationDelay: '2s' }}></div>
 
-      <NavHeader user={user} router={router} />
+      <NavHeader user={user} router={router} onLogout={logout} />
 
       <div className="relative z-10 w-full max-w-6xl mx-auto px-4 py-12 min-h-[calc(100vh-80px)] flex flex-col justify-center">
         <div className="text-center mb-12">
