@@ -71,6 +71,7 @@ export default function handler(req, res) {
         const rooms = socket.rooms;
         if (rooms.size > 1) {
           const roomId = Array.from(rooms)[1]; // First element is socket.id
+          // Broadcast draw event with channel preserved for team-specific filtering
           socket.to(roomId).emit('draw', data);
         }
       });

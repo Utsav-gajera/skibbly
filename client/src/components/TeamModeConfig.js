@@ -64,6 +64,15 @@ export default function TeamModeConfig({ initialConfig = {}, onChange, onStart, 
         <ConfigField label="Time per guess (seconds)" hint="Timer for each guess (10-240 seconds).">
           <input type="number" min={10} max={240} step={5} value={config.timePerGuess} onChange={(e) => updateField('timePerGuess', Math.max(10, Math.min(240, Number(e.target.value))))} className="w-full px-4 py-3 rounded-xl border-2 border-slate-600 bg-slate-900/50 text-slate-100 focus:border-cyan-500 outline-none shadow-sm" disabled={disabled} />
         </ConfigField>
+
+        <div className="space-y-3 md:col-span-2">
+          <label className="text-sm font-semibold text-slate-200">Team perks</label>
+          <div className="flex flex-wrap gap-2 text-xs">
+            {['Shared canvas', 'Team strategy', 'Round pacing'].map((tag, i) => (
+              <span key={i} className={`px-3 py-1 rounded-full ${['bg-cyan-500/20 text-cyan-200 border-cyan-500/30', 'bg-emerald-500/20 text-emerald-200 border-emerald-500/30', 'bg-amber-500/20 text-amber-200 border-amber-500/30'][i]} border font-semibold`}>{tag}</span>
+            ))}
+          </div>
+        </div>
       </div>
 
       <div className="mt-8 flex justify-end gap-3">

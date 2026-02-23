@@ -30,8 +30,16 @@ export function useGameLogic(socketRef, roomId) {
   const [guessCount, setGuessCount] = useState(0);
   const [totalPlayers, setTotalPlayers] = useState(0);
   const [timeRemaining, setTimeRemaining] = useState(60);
+  const [winningTeam, setWinningTeam] = useState(null);
+  const [teamScores, setTeamScores] = useState({ A: 0, B: 0 });
   const drawTimerRef = useRef(null);
   const listenersAttachedRef = useRef(false);
+  
+  // Team mode specific state
+  const [teamADrawerId, setTeamADrawerId] = useState(null);
+  const [teamADrawerName, setTeamADrawerName] = useState('');
+  const [teamBDrawerId, setTeamBDrawerId] = useState(null);
+  const [teamBDrawerName, setTeamBDrawerName] = useState('');
 
   // ========================================================================
   // SETUP SOCKET LISTENERS
@@ -64,12 +72,32 @@ export function useGameLogic(socketRef, roomId) {
         console.log('🔄 [TURN_STARTED] New turn started:', {
           data,
           mySocketId: socket.id,
+          isTeamMode: data.isTeamMode,
           amIDrawer: socket.id === data.drawerId || `player-${socket.id}` === data.drawerId
         });
         setCurrentRound(data.round);
-        setCurrentDrawerId(data.drawerId);
-        setDrawerName(data.drawerName);
+        
+        if (data.isTeamMode) {
+          // Team mode: track both team drawers
+          setTeamADrawerId(data.teamADrawerId);
+          setTeamADrawerName(data.teamADrawerName || 'Team A Drawer');
+          setTeamBDrawerId(data.teamBDrawerId);
+          setTeamBDrawerName(data.teamBDrawerName || 'Team B Drawer');
+          setCurrentDrawerId(data.teamADrawerId); // For backward compatibility
+          setDrawerName('Team vs Team');
+        } else {
+          // Solo mode
+          setCurrentDrawerId(data.drawerId);
+          setDrawerName(data.drawerName);
+          // Reset team drawer info
+          setTeamADrawerId(null);
+          setTeamADrawerName('');
+          setTeamBDrawerId(null);
+          setTeamBDrawerName('');
+        }
+        
         setGamePhase('WORD_SELECTION');
+        setWinningTeam(null);
         // Reset word options and selected word for new turn
         setWordOptions([]);
         setSelectedWord(null);
@@ -83,12 +111,22 @@ export function useGameLogic(socketRef, roomId) {
         console.log('📝 [WORD_SELECTION_POPUP] Received word selection popup:', {
           words: data.words,
           timeLimit: data.timeLimit,
+          team: data.team,
           mySocketId: socket.id,
+          teamADrawerId,
+          teamBDrawerId,
           currentDrawerId: currentDrawerId,
           gamePhase: gamePhase
         });
         setGamePhase('WORD_SELECTION');
         setWordOptions(data.words || []);
+        
+        // In team mode, update drawer IDs if provided
+        if (data.team === 'A' && teamADrawerId) {
+          console.log('🟢 [WORD_POPUP] I am Team A drawer');
+        } else if (data.team === 'B' && teamBDrawerId) {
+          console.log('🔵 [WORD_POPUP] I am Team B drawer');
+        }
         
         // Show modal/popup for drawer to select word
         // This should only appear for the drawer (on their client)
@@ -107,9 +145,23 @@ export function useGameLogic(socketRef, roomId) {
       socket.on(SOCKET_EVENTS.DRAWING_STARTED, (data) => {
         console.log('🎨 Drawing started!', data);
         setGamePhase('DRAWING');
-        setCurrentDrawerId(data.drawerId);
-        setDrawerName(data.drawerName);
-        setSelectedWord(data.word || null);
+        
+        if (data.isTeamMode) {
+          // In team mode, update team-specific drawer info
+          setTeamADrawerId(data.teamADrawerId);
+          setTeamADrawerName(data.teamADrawerName || 'Team A Drawer');
+          setTeamBDrawerId(data.teamBDrawerId);
+          setTeamBDrawerName(data.teamBDrawerName || 'Team B Drawer');
+          setCurrentDrawerId(data.drawerId || data.teamADrawerId); // drawerId will be player's team drawer
+          setDrawerName(data.drawerName || 'Team Drawer');
+          setSelectedWord(data.word || null); // Only if we're the drawer
+        } else {
+          // Solo mode
+          setCurrentDrawerId(data.drawerId);
+          setDrawerName(data.drawerName);
+          setSelectedWord(data.word || null);
+        }
+        
         setGuessCount(0);
         
         // For drawer: show word they need to draw
@@ -155,6 +207,7 @@ export function useGameLogic(socketRef, roomId) {
 
       socket.on(SOCKET_EVENTS.TURN_ENDED, (data) => {
         console.log('📊 Turn ended', data);
+        setWinningTeam(data?.winningTeam || null);
         
         // Reveal word to everyone
         setSelectedWord(data.correctWord);
@@ -167,16 +220,25 @@ export function useGameLogic(socketRef, roomId) {
       socket.on(SOCKET_EVENTS.SCOREBOARD_DISPLAY, (data) => {
         console.log('🏆 Scoreboard time!', data);
         setGamePhase('SCOREBOARD');
-        setLeaderboard(data.scores);
+        setWinningTeam(data?.winningTeam || null);
+        if (data?.teamScores) {
+          setTeamScores({
+            A: Number(data.teamScores.A || 0),
+            B: Number(data.teamScores.B || 0)
+          });
+        }
+        setLeaderboard(Array.isArray(data?.scores) ? data.scores : []);
         setRoundScores(data.roundScores || {});
         setCurrentRound(data.round);
         // Update scores but keep players list order as join order
-        setPlayers((prev) => {
-          const incoming = data.scores || [];
-          if (!prev || prev.length === 0) return incoming;
-          const scoreMap = new Map(incoming.map((p) => [p.id, p.score]));
-          return prev.map((p) => (scoreMap.has(p.id) ? { ...p, score: scoreMap.get(p.id) } : p));
-        });
+        if (!data?.isTeamMode) {
+          setPlayers((prev) => {
+            const incoming = data.scores || [];
+            if (!prev || prev.length === 0) return incoming;
+            const scoreMap = new Map(incoming.map((p) => [p.id, p.score]));
+            return prev.map((p) => (scoreMap.has(p.id) ? { ...p, score: scoreMap.get(p.id) } : p));
+          });
+        }
         
         // Show scoreboard UI for 8 seconds
         // Auto-advance after display time
@@ -190,6 +252,12 @@ export function useGameLogic(socketRef, roomId) {
         console.log('🎊 Game ended!', data);
         setGamePhase('GAME_ENDED');
         setLeaderboard(data.leaderboard);
+        if (data?.teamScores) {
+          setTeamScores({
+            A: Number(data.teamScores.A || 0),
+            B: Number(data.teamScores.B || 0)
+          });
+        }
         
         // Show final leaderboard and winner
         displayWinner(data.winner);
@@ -200,13 +268,23 @@ export function useGameLogic(socketRef, roomId) {
       // ====================================================================
 
       socket.on(SOCKET_EVENTS.GAME_STATE_UPDATED, (data) => {
-        console.log('🔄 Game state updated', data);
+        console.log('\ud83d\udd04 [GAME_STATE_UPDATED] Received:', {
+          phase: data?.phase,
+          playersCount: data?.players?.length,
+          players: data?.players?.map(p => ({ id: p.id, name: p.name, team: p.team }))
+        });
         
         if (data) {
           setGamePhase(data.phase || 'IDLE');
           setCurrentRound(data.round || 1);
           setTotalRounds(data.totalRounds || 1);
           setPlayers(data.players || []);
+          if (data?.teamScores) {
+            setTeamScores({
+              A: Number(data.teamScores.A || 0),
+              B: Number(data.teamScores.B || 0)
+            });
+          }
           setCurrentDrawerId(data.currentDrawerId || null);
           setDrawerName(data.currentDrawerName || '');
         }
@@ -333,6 +411,14 @@ export function useGameLogic(socketRef, roomId) {
     guessCount,
     totalPlayers,
     timeRemaining,
+    winningTeam,
+    teamScores,
+    
+    // Team mode state
+    teamADrawerId,
+    teamADrawerName,
+    teamBDrawerId,
+    teamBDrawerName,
 
     // Helper checks
     isDrawer: (socketId) => {

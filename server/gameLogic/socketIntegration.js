@@ -50,13 +50,21 @@ export function setupGameSocket(io, socket, roomId) {
   // ========== GAME EVENTS ==========
 
   socket.on(SOCKET_EVENTS.WORD_SELECTED, (data) => {
-    const { word } = data;
+    const { word, team } = data;
     console.log('📝 [WORD_SELECTED] Player selected word:', {
       socketId: socket.id,
       word,
+      team,
       currentDrawer: gameManager.gameState?.currentPlayer
     });
-    gameManager.handleWordSelection(socket.id, word);
+    
+    if (team) {
+      // Team mode word selection
+      gameManager.handleTeamWordSelection(socket.id, word, team);
+    } else {
+      // Solo mode word selection
+      gameManager.handleWordSelection(socket.id, word);
+    }
   });
 
   socket.on('guess', (data) => {
@@ -79,13 +87,37 @@ export function setupGameSocket(io, socket, roomId) {
 
     // Check if it's a guess (when game is drawing)
     if (gameManager.gameState?.currentPhase === 'DRAWING') {
+      const player = Array.from(gameManager.players.values()).find(p => p.socketId === socket.id);
+      const isTeamMode = gameManager.gameState?.isTeamMode;
+      const teamWord = player?.team === 'A' 
+        ? gameManager.gameState?.teamASelectedWord 
+        : gameManager.gameState?.teamBSelectedWord;
+      
       console.log('💬 [MESSAGE] Processing potential guess:', {
         socketId: socket.id,
+        playerName: player?.name,
+        playerTeam: player?.team,
         text,
         currentPhase: gameManager.gameState?.currentPhase,
-        currentWord: gameManager.gameState?.selectedWord
+        isTeamMode,
+        soloWord: gameManager.gameState?.selectedWord,
+        teamWord
       });
       gameManager.handleGuess(socket.id, text);
+    }
+  });
+
+  socket.on(SOCKET_EVENTS.TEAM_SELECTED, (data) => {
+    const team = data?.team;
+    console.log('🎯 [TEAM_SELECTED] Received:', { socketId: socket.id, team, roomId });
+    gameManager.setPlayerTeam(socket.id, team);
+    const state = gameManager.getPublicGameState();
+    console.log('📤 [TEAM_SELECTED] Broadcasting state update:', {
+      playersCount: state?.players?.length,
+      players: state?.players?.map(p => ({ id: p.id, name: p.name, team: p.team }))
+    });
+    if (state) {
+      io.to(roomId).emit(SOCKET_EVENTS.GAME_STATE_UPDATED, state);
     }
   });
 

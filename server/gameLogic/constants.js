@@ -51,6 +51,9 @@ export const SOCKET_EVENTS = {
   // Player status
   PLAYER_JOINED: 'player:joined',
   PLAYER_LEFT: 'player:left',
+
+  // Team selection
+  TEAM_SELECTED: 'team:selected',
   
   // Chat/Guess
   MESSAGE: 'message'

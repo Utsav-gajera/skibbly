@@ -21,8 +21,20 @@ export default function GroupChat({ socketRef, name, title = 'Group Chat', chann
     } catch {}
 
     const onMessage = (msg) => {
-      if (roomId && msg?.roomId && msg.roomId !== roomId) return;
-      if (channel && msg?.channel && msg.channel !== channel) return;
+      const myChannel = channelRef.current;
+      const myRoomId = roomRef.current;
+      
+      console.log('📨 [CHAT] Message received:', { 
+        text: msg?.text, 
+        msgChannel: msg?.channel, 
+        myChannel, 
+        msgRoomId: msg?.roomId, 
+        myRoomId,
+        willShow: (!myRoomId || !msg?.roomId || msg.roomId === myRoomId) && (!myChannel || !msg?.channel || msg.channel === myChannel)
+      });
+      
+      if (myRoomId && msg?.roomId && msg.roomId !== myRoomId) return;
+      if (myChannel && msg?.channel && msg.channel !== myChannel) return;
       setMessages(prev => {
         if (msg?.user === '') {
           return [...prev, msg];
@@ -66,6 +78,7 @@ export default function GroupChat({ socketRef, name, title = 'Group Chat', chann
     e.preventDefault();
     if (!input.trim()) return;
     const msg = { user: name, text: input.trim(), channel, roomId };
+    console.log('💬 [CHAT] Sending message:', { text: input.trim(), channel, roomId });
     setMessages(m => [...m, msg]);
     setInput('');
     if (socketRef.current?.connected) socketRef.current.emit('message', msg);

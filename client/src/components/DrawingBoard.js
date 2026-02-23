@@ -49,13 +49,14 @@ export default function DrawingBoard({
   // If parent provides authoritative drawer info, prefer it.
   useEffect(() => {
     if (!mySocketId || !currentDrawerId) {
-      console.log('⚠️ [DRAWER_DETECTION] Missing drawer info:', { mySocketId, currentDrawerId });
+      console.log('⚠️ [DRAWER_DETECTION] Missing drawer info:', { mySocketId, currentDrawerId, channel });
       return;
     }
     const amDrawer = mySocketId === currentDrawerId || `player-${mySocketId}` === currentDrawerId;
     console.log('🔍 [DRAWER_DETECTION] Checking if I am the drawer:', {
       mySocketId,
       currentDrawerId,
+      channel,
       check1_rawMatch: mySocketId === currentDrawerId,
       check2_prefixMatch: `player-${mySocketId}` === currentDrawerId,
       amDrawer
@@ -63,7 +64,7 @@ export default function DrawingBoard({
     isDrawerRef.current = amDrawer;
     setIsDrawer(amDrawer);
     if (drawerNameProp) setDrawerName(drawerNameProp);
-  }, [mySocketId, currentDrawerId, drawerNameProp]);
+  }, [mySocketId, currentDrawerId, drawerNameProp, channel]);
 
   useEffect(() => {
     const canvasEl = canvasRef.current;
@@ -84,12 +85,12 @@ export default function DrawingBoard({
 
     canvas.on('path:created', (e) => {
       if (!isDrawerRef.current) {
-        console.log('⛔ Path creation blocked: not the drawer', { isDrawer: isDrawerRef.current, mySocketId: socketIdRef.current });
+        console.log('⛔ Path creation blocked: not the drawer', { isDrawer: isDrawerRef.current, mySocketId: socketIdRef.current, channel: channelRef.current });
         const obj = e.path || e.target;
         if (obj) canvas.remove(obj);
         return;
       }
-      console.log('✅ Path creation allowed: I am the drawer');
+      console.log('✅ Path creation allowed: I am the drawer', { channel: channelRef.current, roomId: roomIdRef.current });
       const obj = e.path || e.target;
       if (obj) obj.erasable = true;
       const payload = obj.toJSON();

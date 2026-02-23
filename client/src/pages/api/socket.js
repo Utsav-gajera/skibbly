@@ -69,21 +69,39 @@ export default function handler(req, res) {
         if (!roomId) return;
         const gameManager = getGameManager(roomId);
         
-        // Validate that game state exists and drawer is properly assigned
-        if (!gameManager || !gameManager.gameState || !gameManager.gameState.currentPlayer) {
-          console.log('❌ Draw rejected: No active game or drawer', { socketId: socket.id, roomId });
+        if (!gameManager || !gameManager.gameState) {
+          console.log('❌ Draw rejected: No active game', { socketId: socket.id, roomId });
           return;
         }
-        
-        const drawerId = gameManager.gameState.currentPlayer.id;
+
+        const state = gameManager.gameState;
         const senderPlayerId = `player-${socket.id}`;
-        
-        // Only allow the current drawer to draw
-        if (drawerId !== senderPlayerId) {
+
+        let authorizedDrawerId = null;
+        if (state.isTeamMode) {
+          const sender = gameManager.players.get(socket.id);
+          if (!sender?.team) {
+            console.log('❌ Draw rejected: Team mode sender has no team', {
+              socketId: socket.id,
+              senderPlayerId,
+              roomId
+            });
+            return;
+          }
+          authorizedDrawerId = sender.team === 'A'
+            ? state.currentTeamADrawer?.id
+            : state.currentTeamBDrawer?.id;
+        } else {
+          authorizedDrawerId = state.currentPlayer?.id;
+        }
+
+        // Only allow the active drawer for the sender's mode/team to draw
+        if (!authorizedDrawerId || authorizedDrawerId !== senderPlayerId) {
           console.log('❌ Draw rejected: Not the current drawer', {
             socketId: socket.id,
             senderPlayerId,
-            drawerId
+            authorizedDrawerId,
+            isTeamMode: state.isTeamMode
           });
           return;
         }
@@ -96,21 +114,39 @@ export default function handler(req, res) {
         if (!roomId) return;
         const gameManager = getGameManager(roomId);
         
-        // Validate that game state exists and drawer is properly assigned
-        if (!gameManager || !gameManager.gameState || !gameManager.gameState.currentPlayer) {
-          console.log('❌ Clear rejected: No active game or drawer', { socketId: socket.id, roomId });
+        if (!gameManager || !gameManager.gameState) {
+          console.log('❌ Clear rejected: No active game', { socketId: socket.id, roomId });
           return;
         }
-        
-        const drawerId = gameManager.gameState.currentPlayer.id;
+
+        const state = gameManager.gameState;
         const senderPlayerId = `player-${socket.id}`;
-        
-        // Only allow the current drawer to clear
-        if (drawerId !== senderPlayerId) {
+
+        let authorizedDrawerId = null;
+        if (state.isTeamMode) {
+          const sender = gameManager.players.get(socket.id);
+          if (!sender?.team) {
+            console.log('❌ Clear rejected: Team mode sender has no team', {
+              socketId: socket.id,
+              senderPlayerId,
+              roomId
+            });
+            return;
+          }
+          authorizedDrawerId = sender.team === 'A'
+            ? state.currentTeamADrawer?.id
+            : state.currentTeamBDrawer?.id;
+        } else {
+          authorizedDrawerId = state.currentPlayer?.id;
+        }
+
+        // Only allow the active drawer for the sender's mode/team to clear
+        if (!authorizedDrawerId || authorizedDrawerId !== senderPlayerId) {
           console.log('❌ Clear rejected: Not the current drawer', {
             socketId: socket.id,
             senderPlayerId,
-            drawerId
+            authorizedDrawerId,
+            isTeamMode: state.isTeamMode
           });
           return;
         }
