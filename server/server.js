@@ -1,18 +1,14 @@
-import "./config/instrument.js";
 import express from "express";
 import cors from "cors";
 import "dotenv/config";
 import connectDB from "./config/db.js";
-import * as Sentry from "@sentry/node";
 import authRoutes from "./routes/auth.js";
-import connectCloudinary from "./config/cloudinary.js";
 
 // initialize express
 const app = express();
 
 // connect to database
 await connectDB();
-await connectCloudinary();
 
 // middlewares
 app.use(
@@ -41,16 +37,9 @@ app.use("/api/auth", authRoutes);
 
 // routes
 app.get("/", (req, res) => res.send("API is running"));
-if (process.env.NODE_ENV !== "production") {
-  app.get("/debug-sentry", function mainHandler(req, res) {
-    throw new Error("Debug Sentry route");
-  });
-}
 
 // port
 const PORT = process.env.PORT || 5000;
-
-Sentry.setupExpressErrorHandler(app);
 
 app.use((err, req, res, next) => {
   console.error("Unhandled error:", err?.message || err);
