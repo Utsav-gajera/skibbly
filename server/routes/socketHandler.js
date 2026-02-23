@@ -15,8 +15,9 @@ export default function handler(req, res) {
 
     io = new Server(res.socket.server, {
       cors: {
-        origin: process.env.CORS_ORIGIN || '*',
-        methods: ['GET', 'POST']
+        origin: process.env.CORS_ORIGIN || process.env.CLIENT_ORIGIN || 'http://localhost:3000',
+        methods: ['GET', 'POST'],
+        credentials: true
       }
     });
 

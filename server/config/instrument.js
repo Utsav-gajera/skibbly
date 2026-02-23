@@ -1,9 +1,12 @@
-// Import with `` if you are using ESM\
-import * as Sentry from "@sentry/node"
+import * as Sentry from "@sentry/node";
 
-Sentry.init({
-  dsn: "https://f92a7f66064da27a99736737931cf1f9@o4510041845137408.ingest.de.sentry.io/4510041850642512",
-  // Setting this option to true will send default PII data to Sentry.
-  // For example, automatic IP address collection on events
-  sendDefaultPii: true,
-});
+const dsn = process.env.SENTRY_DSN;
+
+if (dsn) {
+  Sentry.init({
+    dsn,
+    environment: process.env.NODE_ENV || "development",
+    sendDefaultPii: false,
+    tracesSampleRate: Number(process.env.SENTRY_TRACES_SAMPLE_RATE || 0)
+  });
+}
