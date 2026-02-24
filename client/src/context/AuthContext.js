@@ -92,18 +92,32 @@ export const useAuth = () => {
   return ctx;
 };
 
-export const AuthGuard = ({ children, publicPaths = [] }) => {
+export const AuthGuard = ({ children, publicPaths = [], joinablePaths = [] }) => {
   const router = useRouter();
   const { user, loading } = useAuth();
 
   useEffect(() => {
+    // While loading, don't redirect (let auth finish)
     if (loading) return;
-    if (!user && !publicPaths.includes(router.pathname)) {
+
+    // If user is logged in, allow them everywhere
+    if (user) return;
+
+    // If no user and page isn't public or joinable, redirect to login
+    const isPublic = publicPaths.includes(router.pathname);
+    const isJoinable = joinablePaths.includes(router.pathname);
+    
+    if (!isPublic && !isJoinable) {
       router.replace("/login");
     }
-  }, [user, loading, router, publicPaths]);
+  }, [user, loading, router, publicPaths, joinablePaths]);
 
-  if (!publicPaths.includes(router.pathname) && (loading || !user)) {
+  // Show nothing while loading OR while redirecting (if not logged in on protected page)
+  const isPublic = publicPaths.includes(router.pathname);
+  const isJoinable = joinablePaths.includes(router.pathname);
+  const needsAuth = !isPublic && !isJoinable;
+
+  if (loading || (needsAuth && !user)) {
     return null;
   }
 
