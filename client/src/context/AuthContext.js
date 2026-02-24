@@ -92,7 +92,7 @@ export const useAuth = () => {
   return ctx;
 };
 
-export const AuthGuard = ({ children, publicPaths = [], joinablePaths = [] }) => {
+export const AuthGuard = ({ children, publicPaths = [] }) => {
   const router = useRouter();
   const { user, loading } = useAuth();
 
@@ -100,24 +100,16 @@ export const AuthGuard = ({ children, publicPaths = [], joinablePaths = [] }) =>
     // While loading, don't redirect (let auth finish)
     if (loading) return;
 
-    // If user is logged in, allow them everywhere
-    if (user) return;
-
-    // If no user and page isn't public or joinable, redirect to login
-    const isPublic = publicPaths.includes(router.pathname);
-    const isJoinable = joinablePaths.includes(router.pathname);
-    
-    if (!isPublic && !isJoinable) {
+    // If user is not logged in and page is not public, redirect to login
+    if (!user && !publicPaths.includes(router.pathname)) {
       router.replace("/login");
     }
-  }, [user, loading, router, publicPaths, joinablePaths]);
+  }, [user, loading, router, publicPaths]);
 
-  // Show nothing while loading OR while redirecting (if not logged in on protected page)
+  // Show nothing while loading OR while user is not authenticated on protected pages
   const isPublic = publicPaths.includes(router.pathname);
-  const isJoinable = joinablePaths.includes(router.pathname);
-  const needsAuth = !isPublic && !isJoinable;
-
-  if (loading || (needsAuth && !user)) {
+  
+  if (loading || (!isPublic && !user)) {
     return null;
   }
 
