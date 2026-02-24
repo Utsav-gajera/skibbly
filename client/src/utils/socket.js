@@ -12,8 +12,16 @@ export const initSocket = async () => {
   
   // Start initialization
   initPromise = (async () => {
-    await fetch('/api/socket');
-    socket = io({ path: '/api/socket', transports: ['websocket'], reconnection: true, reconnectionAttempts: 5, reconnectionDelay: 1000 });
+    // Connect to Render server in production, localhost in development
+    const socketUrl = process.env.NEXT_PUBLIC_SOCKET_SERVER || 'http://localhost:5000';
+    
+    socket = io(socketUrl, {
+      transports: ['websocket'],
+      reconnection: true,
+      reconnectionAttempts: 5,
+      reconnectionDelay: 1000
+    });
+    
     initPromise = null; // Clear the promise once done
     return socket;
   })();

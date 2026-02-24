@@ -1,11 +1,34 @@
 import express from "express";
 import cors from "cors";
 import "dotenv/config";
+import { createServer } from "http";
+import { Server } from "socket.io";
 import connectDB from "./config/db.js";
 import authRoutes from "./routes/auth.js";
+import { initializeSocketHandlers } from "./sockets/handlers.js";
 
-// initialize express
+// initialize express and http server
 const app = express();
+const httpServer = createServer(app);
+
+// initialize socket.io
+const io = new Server(httpServer, {
+  cors: {
+    origin: process.env.CLIENT_ORIGIN || "http://localhost:3000",
+    methods: ["GET", "POST"],
+    credentials: true
+  }
+});
+
+// socket.io connection handler
+io.on("connection", (socket) => {
+  console.log("✅ Client connected:", socket.id);
+  initializeSocketHandlers(io, socket);
+
+  socket.on("disconnect", () => {
+    console.log("❌ Client disconnected:", socket.id);
+  });
+});
 
 // connect to database
 await connectDB();
@@ -47,6 +70,7 @@ app.use((err, req, res, next) => {
   return res.status(500).json({ message: "Internal server error" });
 });
 
-app.listen(PORT, () => {
-  console.log(`Server is running on port ${PORT}`);
+httpServer.listen(PORT, () => {
+  console.log(`🚀 Server is running on port ${PORT}`);
+  console.log(`📡 Socket.IO endpoint: ws://localhost:${PORT}`);
 });
