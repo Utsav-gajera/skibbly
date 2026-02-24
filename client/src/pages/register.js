@@ -1,15 +1,23 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/router";
 import { useAuth } from "../context/AuthContext";
 
 export default function RegisterPage() {
   const router = useRouter();
-  const { register } = useAuth();
+  const { register, user, loading } = useAuth();
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
+
+  // If already logged in, redirect to intended page or home
+  useEffect(() => {
+    if (user && !loading) {
+      const returnTo = router.query.returnTo || "/home";
+      router.replace(returnTo);
+    }
+  }, [user, loading, router]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -17,13 +25,20 @@ export default function RegisterPage() {
     setSubmitting(true);
     try {
       await register(name, email, password);
-      router.replace("/home");
+      // Redirect to intended destination or home
+      const returnTo = router.query.returnTo || "/home";
+      router.replace(returnTo);
     } catch (err) {
       setError(err.message || "Registration failed");
     } finally {
       setSubmitting(false);
     }
   };
+
+  // Show loading while checking auth
+  if (loading) {
+    return <div className="min-h-screen flex items-center justify-center bg-slate-950"></div>;
+  }
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-slate-950 text-slate-100 px-4">

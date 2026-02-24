@@ -102,7 +102,9 @@ export const AuthGuard = ({ children, publicPaths = [] }) => {
 
     // If user is not logged in and page is not public, redirect to login
     if (!user && !publicPaths.includes(router.pathname)) {
-      router.replace("/login");
+      // Save the current page (with query params) as returnTo
+      const returnTo = `${router.pathname}${router.asPath.split(router.pathname)[1] || ''}`;
+      router.replace(`/login?returnTo=${encodeURIComponent(returnTo)}`);
     }
   }, [user, loading, router, publicPaths]);
 
