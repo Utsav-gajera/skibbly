@@ -145,15 +145,31 @@ export class GameManager {
       }
     }
 
-    // In team mode, ensure both teams have at least 1 player
+    // In team mode, enforce per-team minimum and maximum
     if (isTeamMode) {
+      const minPerTeam = 2;
+      const maxPerTeam = Number(config?.playersPerTeam ?? 3);
       const teamACount = Array.from(this.players.values()).filter(p => p.team === 'A').length;
       const teamBCount = Array.from(this.players.values()).filter(p => p.team === 'B').length;
       
-      if (teamACount === 0 || teamBCount === 0) {
+      if (teamACount < minPerTeam || teamBCount < minPerTeam) {
         return {
           success: false,
-          error: 'Both Team A and Team B must have at least 1 player'
+          error: `Each team must have at least ${minPerTeam} players`
+        };
+      }
+
+      if (teamACount > maxPerTeam || teamBCount > maxPerTeam) {
+        return {
+          success: false,
+          error: `Each team can have at most ${maxPerTeam} players`
+        };
+      }
+
+      if (teamACount !== teamBCount) {
+        return {
+          success: false,
+          error: 'Both teams must have the same number of players'
         };
       }
     }

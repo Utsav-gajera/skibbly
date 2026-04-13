@@ -23,6 +23,12 @@ export function setupGameSocket(io, socket, roomId) {
   socket.on('disconnect', () => {
     const stateBeforeLeave = gameManager.gameState;
     const phaseBeforeLeave = stateBeforeLeave?.currentPhase;
+    const wasActiveTeamGame = Boolean(
+      stateBeforeLeave &&
+      stateBeforeLeave.isTeamMode &&
+      phaseBeforeLeave !== 'IDLE' &&
+      phaseBeforeLeave !== 'GAME_ENDED'
+    );
     const wasActiveSoloDrawer = Boolean(
       stateBeforeLeave &&
       !stateBeforeLeave.isTeamMode &&
@@ -31,6 +37,12 @@ export function setupGameSocket(io, socket, roomId) {
     );
 
     gameManager.removePlayer(socket.id);
+
+    // In team mode, if any player leaves during an active game, end the game.
+    if (wasActiveTeamGame && gameManager.gameState) {
+      gameManager.endGame();
+      return;
+    }
 
     // If only 1 player left or game is running, end game
     if (gameManager.players.size < 2 && gameManager.gameState) {
