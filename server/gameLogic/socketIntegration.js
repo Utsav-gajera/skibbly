@@ -1,5 +1,6 @@
 import { GameManager } from './gameManager.js';
 import { SOCKET_EVENTS } from './constants.js';
+import { isCorrectGuess } from './gameHelpers.js';
 
 /**
  * Socket.IO Game Server Integration
@@ -74,37 +75,54 @@ export function setupGameSocket(io, socket, roomId) {
 
   socket.on('message', (data) => {
     // Chat messages are also guesses in the game context
-    const { text } = data;
-    
-    // Relay message to all players
+    const text = `${data?.text ?? ''}`;
+
+    // During drawing, hide ONLY messages that match the current active word.
+    if (gameManager.gameState?.currentPhase === 'DRAWING') {
+      const player = Array.from(gameManager.players.values()).find((p) => p.socketId === socket.id);
+      const isTeamMode = gameManager.gameState?.isTeamMode;
+      const activeWord = isTeamMode
+        ? (player?.team === 'A'
+          ? gameManager.gameState?.teamASelectedWord
+          : gameManager.gameState?.teamBSelectedWord)
+        : gameManager.gameState?.selectedWord;
+
+      const isCurrentWordMessage = Boolean(activeWord && isCorrectGuess(text, activeWord));
+
+      if (isCurrentWordMessage) {
+        console.log('🔒 [MESSAGE] Hidden current word message', {
+          socketId: socket.id,
+          playerName: player?.name,
+          playerTeam: player?.team,
+          phase: gameManager.gameState?.currentPhase
+        });
+
+        // Still process scoring/turn logic, but do not broadcast the raw text.
+        gameManager.handleGuess(socket.id, text);
+        return;
+      }
+
+      // Non-word chat during drawing is allowed and still processed for guess attempts.
+      io.to(roomId).emit('message', {
+        user: data.user,
+        text,
+        channel: data.channel,
+        roomId: data.roomId || roomId,
+        timestamp: Date.now()
+      });
+
+      gameManager.handleGuess(socket.id, text);
+      return;
+    }
+
+    // Outside drawing phase, relay all chat normally.
     io.to(roomId).emit('message', {
       user: data.user,
-      text: text,
+      text,
       channel: data.channel,
       roomId: data.roomId || roomId,
       timestamp: Date.now()
     });
-
-    // Check if it's a guess (when game is drawing)
-    if (gameManager.gameState?.currentPhase === 'DRAWING') {
-      const player = Array.from(gameManager.players.values()).find(p => p.socketId === socket.id);
-      const isTeamMode = gameManager.gameState?.isTeamMode;
-      const teamWord = player?.team === 'A' 
-        ? gameManager.gameState?.teamASelectedWord 
-        : gameManager.gameState?.teamBSelectedWord;
-      
-      console.log('💬 [MESSAGE] Processing potential guess:', {
-        socketId: socket.id,
-        playerName: player?.name,
-        playerTeam: player?.team,
-        text,
-        currentPhase: gameManager.gameState?.currentPhase,
-        isTeamMode,
-        soloWord: gameManager.gameState?.selectedWord,
-        teamWord
-      });
-      gameManager.handleGuess(socket.id, text);
-    }
   });
 
   socket.on(SOCKET_EVENTS.TEAM_SELECTED, (data) => {

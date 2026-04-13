@@ -30,17 +30,24 @@ export function isCorrectGuess(guess, word) {
 }
 
 /**
- * Calculate score based on remaining time (INVERSE function)
- * Less time remaining (faster guess) = higher score
- * 0 seconds remaining = 450 points
- * 60 seconds remaining = 0 points
+ * Calculate score based on remaining time (EXPONENTIAL DECAY)
+ * Less time elapsed (faster guess) = higher score
+ * 0 seconds elapsed (instant guess) = 450 points
+ * 60 seconds elapsed (timeout) = ~197 points (minimum 20)
+ * Uses exponential curve: maxPoints * (1 + ratio) ^ (-1.2)
  */
 export function calculateGuesserScore(remainingTimeMs, maxTimeMs = 60000) {
   const elapsedTime = maxTimeMs - remainingTimeMs;
   const elapsedSeconds = elapsedTime / 1000;
   const maxTimeSeconds = maxTimeMs / 1000;
-  const score = Math.floor((elapsedSeconds / maxTimeSeconds) * 450);
-  return Math.max(0, Math.min(450, score));
+  const maxPoints = 450;
+  
+  // Exponential decay curve (moderate steepness)
+  // Early guesses worth much more, late guesses still earn something
+  const ratio = elapsedSeconds / maxTimeSeconds;
+  const score = maxPoints * Math.pow(1 + ratio, -1.2);
+  
+  return Math.max(20, Math.min(450, Math.floor(score)));
 }
 
 /**
