@@ -206,10 +206,26 @@ export default function TeamPage() {
   }, [gamePhase]);
 
   const startTeam = (cfg) => {
-    if ((players?.length ?? 0) < 2) {
-      setStartError('Minimum 2 players needed to start game.');
+    const minPerTeam = 2;
+    const maxPerTeam = Number(cfg?.playersPerTeam ?? 3);
+    const teamACount = teamAPlayers.length;
+    const teamBCount = teamBPlayers.length;
+
+    if (teamACount < minPerTeam || teamBCount < minPerTeam) {
+      setStartError(`Each team must have at least ${minPerTeam} players.`);
       return;
     }
+
+    if (teamACount > maxPerTeam || teamBCount > maxPerTeam) {
+      setStartError(`Each team can have at most ${maxPerTeam} players.`);
+      return;
+    }
+
+    if (teamACount !== teamBCount) {
+      setStartError('Both teams must have the same number of players.');
+      return;
+    }
+
     setStartError('');
     setConfig(cfg);
     setStage('play');
@@ -228,6 +244,7 @@ export default function TeamPage() {
   const roster = (players?.length ? players : []).map((p, idx) => ({
     id: p?.id || `player-${idx}`,
     name: p?.name || `Player-${idx + 1}`,
+    team: p?.team || null,
     score: Math.max(0, p?.score ?? 0),
     accent: accent[idx % accent.length],
     isSelf: mySocketId ? p?.id === `player-${mySocketId}` : false,
