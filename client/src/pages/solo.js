@@ -55,6 +55,21 @@ export default function SoloPage() {
       socketRef.current = sock;
       setMySocketId(sock.id);
       sock.on('socket-id', (data) => setMySocketId(data.id));
+      sock.on('game:error', (payload) => {
+        const message = payload?.message || 'Unable to start game.';
+
+        if (payload?.code === 'ROOM_FULL' || /room\s+is\s+full/i.test(message)) {
+          if (typeof window !== 'undefined') {
+            window.alert(message);
+          }
+          router.replace('/home');
+          return;
+        }
+
+        setStartError(message);
+        setStage('config');
+        hasStartedRef.current = false;
+      });
       sock.on('connect', () => {
         setMySocketId(sock.id);
         if (pendingStartRef.current) {
@@ -79,7 +94,10 @@ export default function SoloPage() {
       }
     };
     initSock();
-    return () => socketRef.current?.disconnect();
+    return () => {
+      socketRef.current?.off('game:error');
+      socketRef.current?.disconnect();
+    };
   }, []);
 
   useEffect(() => {
@@ -99,6 +117,10 @@ export default function SoloPage() {
       setStartError('Minimum 2 players needed to start game.');
       return;
     }
+    if ((players?.length ?? 0) > (cfg?.maxPlayers ?? 4)) {
+      setStartError(`Room has more than max players (${cfg?.maxPlayers ?? 4}).`);
+      return;
+    }
     setStartError('');
     setConfig(cfg);
     setStage('play');
@@ -106,10 +128,11 @@ export default function SoloPage() {
     startGameIfReady(cfg);
   };
 
-  const mapConfigToGameConfig = (cfg, minPlayers = 1) => ({
+  const mapConfigToGameConfig = (cfg, minPlayers = 2) => ({
     totalRounds: cfg?.rounds ?? 3,
     drawTime: cfg?.timePerGuess ?? 60,
     difficulty: cfg?.difficulty ?? 'medium',
+    maxPlayers: cfg?.maxPlayers ?? 4,
     wordChooseTime: 12,
     scoreboardDisplayTime: 10,
     minPlayers
@@ -219,7 +242,7 @@ export default function SoloPage() {
 
             <section className="bg-slate-900/60 border border-slate-800 rounded-3xl shadow-[0_20px_60px_rgba(0,0,0,0.45)] p-5 overflow-y-auto">
               <SoloModeConfig
-                initialConfig={{ maxPlayers: 1, difficulty: 'medium', rounds: 5, timePerGuess: 60, allowHints: true }}
+                initialConfig={{ maxPlayers: 4, difficulty: 'medium', rounds: 5, timePerGuess: 60, allowHints: true }}
                 onChange={setConfig}
                 onStart={startSolo}
                 errorMessage={startError}

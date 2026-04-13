@@ -31,6 +31,19 @@ export function initializeSocketHandlers(io, socket) {
       const existingBySocket = gameManager.players.get(socket.id);
       const existingByName = Array.from(gameManager.players.values()).find(p => p.name === name);
       const existingBySession = sessionId ? Array.from(gameManager.players.values()).find(p => p.sessionId === sessionId) : null;
+      const isExistingPlayer = Boolean(existingBySocket || (existingByName && existingBySession && existingByName.sessionId === sessionId));
+
+      if (!isExistingPlayer && gameManager.gameState && !gameManager.gameState.isTeamMode) {
+        const maxPlayers = gameManager.gameState?.config?.maxPlayers;
+        if (Number.isFinite(maxPlayers) && gameManager.players.size >= maxPlayers) {
+          socket.emit('game:error', {
+            code: 'ROOM_FULL',
+            message: `Room is full (max ${maxPlayers} players)`
+          });
+          socket.leave(roomId);
+          return;
+        }
+      }
       
       if (existingBySocket) {
         console.log('⚠️ Player socket already in room, skipping add:', socket.id);
