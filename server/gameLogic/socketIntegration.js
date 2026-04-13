@@ -21,11 +21,36 @@ export function setupGameSocket(io, socket, roomId) {
   const gameManager = gameManagers.get(roomId);
 
   socket.on('disconnect', () => {
+    const stateBeforeLeave = gameManager.gameState;
+    const phaseBeforeLeave = stateBeforeLeave?.currentPhase;
+    const wasActiveSoloDrawer = Boolean(
+      stateBeforeLeave &&
+      !stateBeforeLeave.isTeamMode &&
+      stateBeforeLeave.currentPlayer?.socketId === socket.id &&
+      (phaseBeforeLeave === 'WORD_SELECTION' || phaseBeforeLeave === 'DRAWING')
+    );
+
     gameManager.removePlayer(socket.id);
 
     // If only 1 player left or game is running, end game
     if (gameManager.players.size < 2 && gameManager.gameState) {
       gameManager.endGame();
+      return;
+    }
+
+    // If the current solo drawer leaves mid-turn, immediately move to next drawer.
+    if (wasActiveSoloDrawer && gameManager.gameState) {
+      gameManager.clearTimer('wordSelection');
+      gameManager.clearTimer('drawing');
+      gameManager.pendingRoundScores = {};
+      gameManager.roundScores = {};
+      gameManager.startTurn();
+
+      const refreshedState = gameManager.getPublicGameState();
+      if (refreshedState) {
+        io.to(roomId).emit(SOCKET_EVENTS.GAME_STATE_UPDATED, refreshedState);
+      }
+      return;
     }
 
     const state = gameManager.getPublicGameState();

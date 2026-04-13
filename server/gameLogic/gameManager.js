@@ -40,6 +40,16 @@ export class GameManager {
       team: null
     };
     this.players.set(socketId, player);
+
+    // If a solo game is already running, allow late joiners to participate.
+    // Keep the active game state's player list in sync with the socket map.
+    if (this.gameState && !this.gameState.isTeamMode) {
+      const existsInState = this.gameState.players.some((p) => p.id === player.id);
+      if (!existsInState) {
+        this.gameState.players.push({ ...player });
+      }
+    }
+
     return player;
   }
 
@@ -71,7 +81,32 @@ export class GameManager {
   }
 
   removePlayer(socketId) {
+    const removed = this.players.get(socketId);
     this.players.delete(socketId);
+
+    if (!removed || !this.gameState) return;
+
+    // Keep active game state in sync for solo mode.
+    if (!this.gameState.isTeamMode) {
+      const removedIndex = this.gameState.players.findIndex((p) => p.id === removed.id);
+      if (removedIndex !== -1) {
+        this.gameState.players.splice(removedIndex, 1);
+
+        // Maintain a valid current player index after removals.
+        if (this.gameState.players.length === 0) {
+          this.gameState.currentPlayerIndex = 0;
+        } else if (removedIndex < this.gameState.currentPlayerIndex) {
+          this.gameState.currentPlayerIndex -= 1;
+        } else if (this.gameState.currentPlayerIndex >= this.gameState.players.length) {
+          this.gameState.currentPlayerIndex = 0;
+        }
+      }
+
+      // Remove disconnected player from in-turn/per-round bookkeeping.
+      this.gameState.guessedPlayerIds.delete(removed.id);
+      delete this.pendingRoundScores[removed.id];
+      delete this.roundScores[removed.id];
+    }
   }
 
   addPendingScore(playerId, points) {
@@ -97,6 +132,17 @@ export class GameManager {
         success: false,
         error: `Minimum ${minPlayers} players required to start game`
       };
+    }
+
+    // In solo mode, enforce configurable max players
+    if (!isTeamMode) {
+      const maxPlayers = config?.maxPlayers ?? Infinity;
+      if (this.players.size > maxPlayers) {
+        return {
+          success: false,
+          error: `Maximum ${maxPlayers} players allowed in solo mode`
+        };
+      }
     }
 
     // In team mode, ensure both teams have at least 1 player
