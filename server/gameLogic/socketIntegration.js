@@ -111,7 +111,7 @@ export function setupGameSocket(io, socket, roomId) {
   });
 
   socket.on('message', (data) => {
-    // Chat messages are also guesses in the game context
+    // Chat messages are also guesses3-- in the game context
     const text = `${data?.text ?? ''}`;
 
     // During drawing, hide ONLY messages that match the current active word.
