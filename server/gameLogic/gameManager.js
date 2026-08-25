@@ -54,7 +54,7 @@ export class GameManager {
   }
 
   setPlayerTeam(socketId, team) {
-    const normalizedTeam = team === 'A' || team === 'B' ? team : null;
+    const normalizedTeam = team === 'A' || team === 'B' ? team : null; 
     const player = this.players.get(socketId);
     if (!player) {
       console.log('❌ [SET_TEAM] Player not found:', socketId);

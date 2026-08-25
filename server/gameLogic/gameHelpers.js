@@ -36,6 +36,7 @@ export function isCorrectGuess(guess, word) {
  * 60 seconds elapsed (timeout) = ~197 points (minimum 20)
  * Uses exponential curve: maxPoints * (1 + ratio) ^ (-1.2)
  */
+
 export function calculateGuesserScore(remainingTimeMs, maxTimeMs = 60000) {
   const elapsedTime = maxTimeMs - remainingTimeMs;
   const elapsedSeconds = elapsedTime / 1000;
